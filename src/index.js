@@ -19,10 +19,12 @@ import {
  * back out.
  */
 export async function handleInbound(message, env) {
-  // Only forward addresses we actually own. Anything else is rejected so the
-  // worker can't be used as an open forwarder for the whole domain.
+  // Only forward addresses we actually own. Anything else is rejected at SMTP
+  // time (the sender's server gets a bounce) so the worker can't be used as an
+  // open forwarder. The reject reason points senders at a real contact URL.
   if (!isAllowedAlias(message.to, env.ALLOWED_ALIASES)) {
-    message.setReject('Address does not exist');
+    const contact = env.CONTACT_URL || `https://${env.RELAY_DOMAIN}`;
+    message.setReject(`No such address at ${env.RELAY_DOMAIN}. See ${contact}`);
     return;
   }
 

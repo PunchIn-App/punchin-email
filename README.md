@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=1f6feb)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.1-1f6feb?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-1f6feb?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -96,6 +96,7 @@ Non-secret `wrangler.toml` vars:
 | --- | --- |
 | `RELAY_DOMAIN` | Domain used in the generated `relay+<id>@…` Reply-To. |
 | `ALLOWED_ALIASES` | Comma-separated base local-parts that may forward (e.g. `cla,licensing,cve,abuse`). |
+| `CONTACT_URL` | Optional. URL shown in the bounce when mail hits an unrecognized address. Defaults to `https://<RELAY_DOMAIN>` if unset. |
 
 Secret (set with `wrangler secret put`, never committed):
 

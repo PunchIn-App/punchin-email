@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.0.1
+**Version:** 1.1.0
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -87,6 +87,8 @@ Vars (`wrangler.toml [vars]`, non-secret, committed):
 
 - `RELAY_DOMAIN` — domain used in the generated `relay+<id>@…` Reply-To
 - `ALLOWED_ALIASES` — comma-separated base local-parts allowed to forward
+- `CONTACT_URL` — optional; URL shown in the bounce for unrecognized addresses
+  (defaults to `https://<RELAY_DOMAIN>`)
 
 Secret (`wrangler secret put`, never committed):
 

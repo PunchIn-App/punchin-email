@@ -45,6 +45,7 @@ export function makeEnv(overrides = {}) {
     FORWARD_TO: 'owner@example.com',
     RELAY_DOMAIN: 'trackmytime.today',
     ALLOWED_ALIASES: 'cla,licensing,cve,abuse',
+    CONTACT_URL: 'https://trackmytime.today',
     EMAIL_THREADS: makeKV(),
     EMAIL_SENDING: {
       sent,

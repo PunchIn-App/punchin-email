@@ -42,9 +42,22 @@ describe('handleInbound', () => {
 
     await handleInbound(msg, env);
 
-    expect(msg.calls.reject).toEqual(['Address does not exist']);
+    expect(msg.calls.reject).toEqual([
+      'No such address at trackmytime.today. See https://trackmytime.today',
+    ]);
     expect(msg.calls.forward).toHaveLength(0);
     expect(env.EMAIL_THREADS.puts).toHaveLength(0);
+  });
+
+  it('falls back to the relay-domain URL when CONTACT_URL is unset', async () => {
+    const env = makeEnv({ CONTACT_URL: undefined, RELAY_DOMAIN: 'example.test' });
+    const msg = makeMessage({ from: 'p@corp.com', to: 'nope@example.test' });
+
+    await handleInbound(msg, env);
+
+    expect(msg.calls.reject).toEqual([
+      'No such address at example.test. See https://example.test',
+    ]);
   });
 });
 

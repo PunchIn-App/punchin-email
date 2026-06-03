@@ -11,6 +11,10 @@ RELAY_DOMAIN    = "trackmytime.today"
 # Comma-separated base local-parts that are allowed to forward. Anything else
 # hitting the catch-all worker is rejected instead of forwarded.
 ALLOWED_ALIASES = "cla,licensing,cve,abuse"
+# URL shown in the bounce when mail hits an unrecognized address. Point this at a
+# real, existing page (defaults to https://<RELAY_DOMAIN> if unset). Repoint it to
+# a dedicated /contact page once one exists.
+CONTACT_URL     = "https://trackmytime.today"
 
 [[kv_namespaces]]
 binding = "EMAIL_THREADS"

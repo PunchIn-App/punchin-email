@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0] — 2026-06-03
+
+### Added
+- Inbound — mail to an unrecognized address is now rejected with a branded
+  reason that points the sender at a contact URL
+  (e.g. `No such address at trackmytime.today. See https://trackmytime.today`),
+  configurable via the new optional `CONTACT_URL` var (defaults to
+  `https://<RELAY_DOMAIN>`). Unknown addresses are still rejected at SMTP time —
+  no auto-reply is sent — so there is no backscatter and nothing is stored in KV.
+
+---
+
 ## [1.0.1] — 2026-06-03
 
 ### Security
