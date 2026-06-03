@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.1] — 2026-06-03
+
+### Security
+- Tooling — upgraded the `wrangler` dev dependency from v3 to v4, which removes
+  the vulnerable transitive packages flagged by `npm audit` (esbuild, undici,
+  miniflare, ws). `npm audit` now reports 0 vulnerabilities. These were dev/CLI
+  tooling only and never shipped in the deployed worker.
+
+### Changed
+- Tooling — wrangler 4 requires Node.js ≥ 22, so the project now declares
+  `engines.node >= 22` and CI runs on Node 22. (internal)
+- CI — Dependabot now groups all npm updates into a single weekly PR (and all
+  GitHub Actions updates into another), instead of one PR per dependency. (internal)
+
+---
+
 ## [1.1.0] — 2026-06-03
 
 ### Added
