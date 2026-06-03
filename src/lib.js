@@ -107,6 +107,68 @@ export function isAutoSubmitted(headers) {
   return false;
 }
 
+// --- Validation helpers for the admin settings API -------------------------
+
+/**
+ * Loose RFC-5321-ish check that a string looks like a single email address.
+ * Not a full parser — just enough to reject obviously bad input from the UI.
+ * @param {string} value
+ */
+export function isValidEmailAddress(value) {
+  if (typeof value !== 'string') return false;
+  const v = value.trim();
+  if (v.length === 0 || v.length > 254 || /\s/.test(v)) return false;
+  return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(v);
+}
+
+/**
+ * Normalize a list of allowed alias local-parts. Accepts an array or a
+ * comma/space-separated string; returns a cleaned, de-duplicated, sorted
+ * comma string of valid local-parts. Throws on an invalid token so the API
+ * can report it.
+ *
+ * Rules: lowercase; only `a-z 0-9 . _ -`; no `+` (subaddressing is stripped
+ * at match time); `relay` is reserved for the reply path and rejected.
+ * @param {string|string[]} input
+ * @returns {string}
+ */
+export function normalizeAliasList(input) {
+  const tokens = Array.isArray(input) ? input : String(input || '').split(/[,\s]+/);
+  const out = [];
+  for (const tok of tokens) {
+    const t = String(tok).trim().toLowerCase();
+    if (t === '') continue;
+    if (t === 'relay') throw new Error('"relay" is reserved for the reply path');
+    if (!/^[a-z0-9._-]+$/.test(t)) {
+      throw new Error(`Invalid alias "${tok}" (allowed: letters, digits, . _ -)`);
+    }
+    if (!out.includes(t)) out.push(t);
+  }
+  if (out.length === 0) throw new Error('At least one alias is required');
+  return out.sort().join(',');
+}
+
+/**
+ * Validate an optional contact URL. Empty is allowed (the worker falls back to
+ * https://<RELAY_DOMAIN>). Non-empty must be a well-formed http(s) URL.
+ * @param {string} value
+ * @returns {string} the trimmed URL, or '' for empty
+ */
+export function normalizeContactUrl(value) {
+  const v = String(value || '').trim();
+  if (v === '') return '';
+  let url;
+  try {
+    url = new URL(v);
+  } catch {
+    throw new Error('Contact URL must be a valid URL');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Contact URL must be http(s)');
+  }
+  return v;
+}
+
 /**
  * Rewrite a raw RFC 2822 message for relaying: keep only the allowlisted
  * headers in KEPT_HEADER_RE (Subject, Message-ID, In-Reply-To, References,

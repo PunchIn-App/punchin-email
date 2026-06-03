@@ -15,6 +15,13 @@ ALLOWED_ALIASES = "cla,licensing,cve,abuse"
 # real, existing page (defaults to https://<RELAY_DOMAIN> if unset). Repoint it to
 # a dedicated /contact page once one exists.
 CONTACT_URL     = "https://trackmytime.today"
+# Cloudflare Access (admin UI auth). Fill both in from the Access application you
+# create in front of this worker's URL — they are non-secret identifiers. While
+# either is blank, the admin UI fails closed (returns 503) and only email runs.
+#   ACCESS_AUD         — the application Audience (AUD) tag
+#   ACCESS_TEAM_DOMAIN — your team domain, e.g. yourteam.cloudflareaccess.com
+ACCESS_AUD         = ""
+ACCESS_TEAM_DOMAIN = ""
 
 [[kv_namespaces]]
 binding = "EMAIL_THREADS"

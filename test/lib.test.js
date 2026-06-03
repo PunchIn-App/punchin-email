@@ -8,6 +8,9 @@ import {
   isAutoSubmitted,
   rewriteHeaders,
   THREAD_TTL_SECONDS,
+  isValidEmailAddress,
+  normalizeAliasList,
+  normalizeContactUrl,
 } from '../src/lib.js';
 
 describe('generateId', () => {
@@ -184,5 +187,48 @@ describe('rewriteHeaders', () => {
 describe('THREAD_TTL_SECONDS', () => {
   it('is 30 days', () => {
     expect(THREAD_TTL_SECONDS).toBe(2592000);
+  });
+});
+
+describe('isValidEmailAddress', () => {
+  it('accepts plausible addresses', () => {
+    expect(isValidEmailAddress('you@example.com')).toBe(true);
+    expect(isValidEmailAddress('a.b+tag@sub.example.co.uk')).toBe(true);
+  });
+  it('rejects junk', () => {
+    expect(isValidEmailAddress('')).toBe(false);
+    expect(isValidEmailAddress('no-at-sign')).toBe(false);
+    expect(isValidEmailAddress('a@b')).toBe(false);
+    expect(isValidEmailAddress('two@@example.com')).toBe(false);
+    expect(isValidEmailAddress('has space@example.com')).toBe(false);
+    expect(isValidEmailAddress(42)).toBe(false);
+  });
+});
+
+describe('normalizeAliasList', () => {
+  it('cleans, lowercases, dedupes, and sorts (string or array)', () => {
+    expect(normalizeAliasList('CVE, cla,  abuse ,cla')).toBe('abuse,cla,cve');
+    expect(normalizeAliasList(['cla', 'Licensing'])).toBe('cla,licensing');
+  });
+  it('rejects the reserved relay prefix and bad tokens', () => {
+    expect(() => normalizeAliasList('cla,relay')).toThrow(/reserved/);
+    expect(() => normalizeAliasList('cla,bad!token')).toThrow(/Invalid alias/);
+    expect(() => normalizeAliasList('cla,a+b')).toThrow(/Invalid alias/);
+  });
+  it('requires at least one alias', () => {
+    expect(() => normalizeAliasList('')).toThrow(/At least one/);
+    expect(() => normalizeAliasList('  , ')).toThrow(/At least one/);
+  });
+});
+
+describe('normalizeContactUrl', () => {
+  it('allows empty and valid http(s) URLs', () => {
+    expect(normalizeContactUrl('')).toBe('');
+    expect(normalizeContactUrl('  https://trackmytime.today  ')).toBe('https://trackmytime.today');
+  });
+  it('rejects non-http(s) or malformed URLs', () => {
+    expect(() => normalizeContactUrl('not a url')).toThrow();
+    expect(() => normalizeContactUrl('ftp://x.y')).toThrow(/http/);
+    expect(() => normalizeContactUrl('javascript:alert(1)')).toThrow();
   });
 });

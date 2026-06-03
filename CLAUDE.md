@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.1.1
+**Version:** 1.2.0
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -20,11 +20,17 @@ docs (CLA → `cla@`, security → `cve@`, conduct → `abuse@`).
 
 ```
 src/
-  index.js   email() entrypoint + handleInbound / handleRelay (exported for tests)
-  lib.js     pure, runtime-agnostic helpers (no cloudflare:email import)
+  index.js    email() + fetch() entrypoints; handleInbound / handleRelay
+  lib.js      pure, runtime-agnostic helpers (no cloudflare:email import)
+  settings.js KV-backed settings (getSettings / updateSettings) over env defaults
+  access.js   Cloudflare Access JWT verification (authenticateAdmin), fails closed
+  admin.js    admin UI page + JSON settings API (handleAdminRequest)
 test/
-  lib.test.js        unit tests for the helpers
-  handlers.test.js   handler + routing tests using mocked bindings
+  lib.test.js        unit tests for the helpers + validators
+  handlers.test.js   email handler + routing tests using mocked bindings
+  settings.test.js   getSettings / updateSettings over mocked KV
+  access.test.js     Access claim + JWT signature verification
+  admin.test.js      admin router (GET/PUT /api/settings) tests
   helpers.js         test doubles (KV, message, env)
   mocks/             stub for the cloudflare:email module
 docs/
@@ -56,7 +62,19 @@ mail → parse and look up the thread id → rewrite headers → send via
 `EMAIL_SENDING`.
 
 The `email()` entrypoint routes by recipient: `relay+` prefix → relay handler,
-everything else → inbound handler.
+everything else → inbound handler. Both handlers read the effective config via
+`getSettings(env)` (KV record layered over env defaults), so the forwarding
+address / aliases / contact URL can change at runtime.
+
+## Admin UI (`fetch()`)
+
+The `fetch()` entrypoint serves a small admin page (`/`) and a settings API
+(`GET/PUT /api/settings`). Every request is gated by `authenticateAdmin`, which
+**fails closed** (503) unless `ACCESS_AUD` + `ACCESS_TEAM_DOMAIN` are set, then
+verifies the Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`): signature against
+the team JWKS, plus AUD / issuer / expiry. Mutations also require a same-origin
+`Origin`. Editable settings live in the `EMAIL_THREADS` KV under
+`settings:v1` (no TTL); `RELAY_DOMAIN` is not editable.
 
 ## Robustness Guards (do not weaken without rationale)
 
@@ -85,10 +103,16 @@ npm run deploy    # wrangler deploy
 
 Vars (`wrangler.toml [vars]`, non-secret, committed):
 
-- `RELAY_DOMAIN` — domain used in the generated `relay+<id>@…` Reply-To
-- `ALLOWED_ALIASES` — comma-separated base local-parts allowed to forward
-- `CONTACT_URL` — optional; URL shown in the bounce for unrecognized addresses
-  (defaults to `https://<RELAY_DOMAIN>`)
+- `RELAY_DOMAIN` — domain used in the generated `relay+<id>@…` Reply-To (static)
+- `ALLOWED_ALIASES` — default base local-parts allowed to forward (admin-editable)
+- `CONTACT_URL` — optional default URL shown in the bounce for unrecognized
+  addresses (admin-editable; falls back to `https://<RELAY_DOMAIN>`)
+- `ACCESS_AUD` / `ACCESS_TEAM_DOMAIN` — Cloudflare Access app AUD + team domain
+  for admin-UI auth. Blank → admin UI fails closed (email still runs).
+
+`ALLOWED_ALIASES`, `CONTACT_URL`, and `FORWARD_TO` are **defaults**: the admin UI
+can override them in KV (`settings:v1`). The env/secret values are the bootstrap
+used until something is saved.
 
 Secret (`wrangler secret put`, never committed):
 

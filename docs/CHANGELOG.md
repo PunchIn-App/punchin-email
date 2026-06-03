@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.0] — 2026-06-03
+
+### Added
+- Admin — the worker now serves a small admin UI (and `GET/PUT /api/settings`)
+  from a `fetch()` handler, gated by Cloudflare Access (GitHub login). From it you
+  can change the forwarding address, the accepted aliases, and the contact URL
+  without a redeploy.
+- Settings — these three values are now read from a single KV record, layered
+  over the `wrangler.toml` / secret defaults; the email handlers read the
+  effective settings on each message. `RELAY_DOMAIN` stays static.
+
+### Security
+- Admin — the admin handler fails closed: if the `ACCESS_AUD` /
+  `ACCESS_TEAM_DOMAIN` vars are unset it returns 503 and serves nothing. When
+  configured, every request is verified against the Access JWT (signature + AUD
+  + issuer + expiry); mutations also require a same-origin `Origin`.
+
+---
+
 ## [1.1.1] — 2026-06-03
 
 ### Security

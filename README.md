@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=1f6feb)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.1.1-1f6feb?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-1f6feb?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -97,6 +97,12 @@ Non-secret `wrangler.toml` vars:
 | `RELAY_DOMAIN` | Domain used in the generated `relay+<id>@…` Reply-To. |
 | `ALLOWED_ALIASES` | Comma-separated base local-parts that may forward (e.g. `cla,licensing,cve,abuse`). |
 | `CONTACT_URL` | Optional. URL shown in the bounce when mail hits an unrecognized address. Defaults to `https://<RELAY_DOMAIN>` if unset. |
+| `ACCESS_AUD` | Admin UI auth — the Cloudflare Access application **Audience (AUD)** tag. Blank ⇒ admin UI disabled (fails closed). |
+| `ACCESS_TEAM_DOMAIN` | Admin UI auth — your Access **team domain**, e.g. `yourteam.cloudflareaccess.com`. |
+
+`ALLOWED_ALIASES`, `CONTACT_URL`, and `FORWARD_TO` are **defaults** — the [admin
+UI](#admin-ui) can override them at runtime (stored in KV). The committed/secret
+values are the bootstrap used until you save something.
 
 Secret (set with `wrangler secret put`, never committed):
 
@@ -143,6 +149,40 @@ route, because the worker already enforces the alias allowlist itself:
 
 > If you use individual rules instead of catch-all, the `relay+*` replies need a
 > rule too. Without it, your replies bounce. Catch-all avoids that footgun.
+
+## Admin UI
+
+The worker also serves a tiny admin page (and a `GET/PUT /api/settings` API) from
+its `fetch()` handler, so you can change the **forwarding address**, **accepted
+aliases**, and **contact URL** at runtime without a redeploy. Those values are
+stored in KV (`settings:v1`) layered over the deploy defaults; `RELAY_DOMAIN`
+stays fixed.
+
+**This route is public on `*.workers.dev`, so it must be gated.** Auth is done with
+[Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/)
+(GitHub login). The worker independently verifies the Access JWT and **fails
+closed** — until `ACCESS_AUD` + `ACCESS_TEAM_DOMAIN` are set, every request gets a
+`503`.
+
+### Setup
+
+1. **Cloudflare dashboard → your `punchin-email` worker → Settings → Domains &
+   Routes → Enable Cloudflare Access** (or **Zero Trust → Access → Applications →
+   Add → Self-hosted** targeting `punchin-email.<subdomain>.workers.dev`).
+2. **Identity provider:** add **GitHub** as a login method in Zero Trust →
+   Settings → Authentication.
+3. **Policy:** allow only you — e.g. an `Allow` policy with **Include → GitHub →**
+   your GitHub login / email.
+4. From the application's config, copy the **Application Audience (AUD) tag** and
+   your **team domain** (`<team>.cloudflareaccess.com`) into `ACCESS_AUD` and
+   `ACCESS_TEAM_DOMAIN` in `wrangler.toml`, then deploy. Turn on **“Validate
+   Access JWTs”** so unauthenticated requests are blocked at the edge too.
+5. Visit `https://punchin-email.<subdomain>.workers.dev/`, log in with GitHub, and
+   you'll get the settings form.
+
+> Defence in depth: Access blocks unauthenticated requests at the edge **and** the
+> worker verifies the JWT (signature + AUD + issuer + expiry) itself, so the admin
+> API is safe even if the route is ever reached directly.
 
 ## Development
 
