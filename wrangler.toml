@@ -1,0 +1,20 @@
+name = "punchin-email"
+main = "src/index.js"
+compatibility_date = "2024-06-03"
+
+# FORWARD_TO is intentionally NOT defined here. It is the personal destination
+# inbox (PII) and the only address allowed to drive the relay, so it is kept out
+# of version control and set as a secret instead:
+#     wrangler secret put FORWARD_TO
+[vars]
+RELAY_DOMAIN    = "trackmytime.today"
+# Comma-separated base local-parts that are allowed to forward. Anything else
+# hitting the catch-all worker is rejected instead of forwarded.
+ALLOWED_ALIASES = "cla,licensing,cve,abuse"
+
+[[kv_namespaces]]
+binding = "EMAIL_THREADS"
+id      = "7578f30de4a44f97b1900d3fbd9ebf7e"
+
+[[send_email]]
+name = "EMAIL_SENDING"
