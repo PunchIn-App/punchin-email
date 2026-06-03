@@ -124,15 +124,21 @@ route, because the worker already enforces the alias allowlist itself:
 
 1. **Email** → **Email Routing** → enable it and let Cloudflare add the `MX`/`TXT`
    (SPF) records for `trackmytime.today`.
-2. **Settings** → enable **Subaddressing** (so `cla+foo@` reaches the worker).
-3. **Routing rules** → **Catch-all address** → action **Send to a Worker** →
+2. **Routing rules** → **Catch-all address** → action **Send to a Worker** →
    `punchin-email`. (Alternatively, create individual `Send to a Worker` rules
    for `cla`, `licensing`, `cve`, `abuse`, **and** `relay` — but catch-all is
    less error-prone.)
-4. **Destination addresses** → verify `FORWARD_TO`. Inbound forwarding will not
+3. **Destination addresses** → verify `FORWARD_TO`. Inbound forwarding will not
    work until this address shows **Verified**.
-5. Ensure the domain's DKIM for Email Sending is configured so relayed mail is
+4. Ensure the domain's DKIM for Email Sending is configured so relayed mail is
    signed for `trackmytime.today`.
+
+> **Subaddressing (the Cloudflare setting) is optional with catch-all.** Catch-all
+> delivers the full recipient — including `cla+foo@`, `cve+123@`, and the
+> `relay+<id>@` replies — to the worker with the `+tag` intact, and the worker
+> strips the subaddress itself (`baseLocalPart`). You'd only need to enable
+> Cloudflare's Subaddressing toggle if you switched from catch-all to individual
+> per-address rules and wanted `+tag` variants to match them.
 
 > If you use individual rules instead of catch-all, the `relay+*` replies need a
 > rule too. Without it, your replies bounce. Catch-all avoids that footgun.
