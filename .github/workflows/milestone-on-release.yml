@@ -1,0 +1,52 @@
+# When a release is published (step 9 of the release ritual — `gh release create
+# vX.Y.Z`), create a matching milestone and assign every merged PR that doesn't
+# yet have one. "No milestone" cleanly means "merged since the last release",
+# because the previous release already milestoned its PRs.
+#
+# Runs under ADD_TO_PROJECT_PAT (the default GITHUB_TOKEN is kept read-only). The
+# PAT must grant Issues: read/write (create milestone + assign) and Contents:
+# read (search) on the repo. The board's Milestone field mirrors automatically.
+name: Milestone on release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  milestone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            const { owner, repo } = context.repo;
+            const rel = context.payload.release;
+            const tag = rel.tag_name;
+
+            // Create the milestone (closed, dated to the release); reuse if it exists.
+            let ms;
+            try {
+              ms = (await github.rest.issues.createMilestone({
+                owner, repo, title: tag, state: 'closed',
+                due_on: rel.published_at, description: `Released ${(rel.published_at || '').slice(0, 10)}`,
+              })).data;
+            } catch (e) {
+              const all = await github.paginate(github.rest.issues.listMilestones, { owner, repo, state: 'all', per_page: 100 });
+              ms = all.find(m => m.title === tag);
+            }
+            if (!ms) { core.setFailed('Could not create or find the milestone'); return; }
+
+            // Assign every merged PR with no milestone (= merged since last release).
+            const prs = await github.paginate(github.rest.search.issuesAndPullRequests, {
+              q: `repo:${owner}/${repo} is:pr is:merged no:milestone`, per_page: 100,
+            });
+            let n = 0;
+            for (const pr of prs) {
+              await github.rest.issues.update({ owner, repo, issue_number: pr.number, milestone: ms.number })
+                .then(() => n++)
+                .catch(e => core.warning(`#${pr.number}: ${e.message}`));
+            }
+            core.info(`Milestone ${tag} (#${ms.number}): assigned ${n} merged PR(s)`);
