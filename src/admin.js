@@ -93,35 +93,71 @@ function renderAdminPage() {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#0F1117">
 <title>PunchIn Email — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Display:wght@600;700;800&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root { --accent:#1f6feb; --bg:#0d1117; --card:#161b22; --fg:#e6edf3; --muted:#8b949e; --border:#30363d; }
+  /* Design tokens mirror the main PunchIn app (src/index.css). */
+  :root {
+    color-scheme: dark;
+    --accent-rgb: 245 158 11;
+    --accent: rgb(245 158 11);
+    --bg-primary:#0F1117; --bg-secondary:#161923; --bg-tertiary:#1E2232;
+    --border-color:#2A2F45;
+    --text-primary:#FFFFFF; --text-secondary:#E2E8F0; --text-muted:#6B7280; --text-disabled:#374151;
+    --ok:#34D399; --err:#F87171;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-  .wrap { max-width:640px; margin:0 auto; padding:32px 20px; }
-  h1 { font-size:20px; margin:0 0 4px; }
-  .sub { color:var(--muted); margin:0 0 24px; font-size:13px; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
-  label { display:block; font-weight:600; margin:18px 0 6px; }
+  body {
+    margin:0; background:var(--bg-primary); color:var(--text-secondary);
+    font:15px/1.6 "Noto Sans", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  .wrap { max-width:640px; margin:0 auto; padding:40px 20px; }
+  .head { display:flex; align-items:center; gap:12px; margin:0 0 4px; }
+  .mark { width:32px; height:32px; border-radius:8px; background:var(--accent); flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  h1 { font-family:"Noto Sans Display","Noto Sans",sans-serif; font-weight:800; font-size:22px; color:var(--text-primary); margin:0; }
+  .sub { color:var(--text-muted); margin:0 0 28px; font-size:13px; }
+  code { font-family:"Noto Sans Mono", ui-monospace, monospace; font-size:.92em; color:var(--text-secondary); }
+  .card { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  label { display:block; font-weight:600; color:var(--text-primary); margin:20px 0 6px; }
   label:first-of-type { margin-top:0; }
-  .hint { color:var(--muted); font-weight:400; font-size:12px; margin-top:2px; }
-  input[type=text] { width:100%; padding:9px 11px; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:7px; font:inherit; }
-  input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
-  .badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; margin-left:8px; vertical-align:middle; }
-  .badge.kv { background:rgba(31,111,235,.18); color:#79b8ff; }
-  .badge.env { background:rgba(139,148,158,.18); color:var(--muted); }
-  .row { display:flex; align-items:center; gap:12px; margin-top:24px; }
-  button { background:var(--accent); color:#fff; border:0; border-radius:7px; padding:10px 18px; font:inherit; font-weight:600; cursor:pointer; }
-  button:disabled { opacity:.6; cursor:default; }
-  .status { font-size:13px; }
-  .status.ok { color:#56d364; }
-  .status.err { color:#f85149; }
-  .meta { color:var(--muted); font-size:12px; margin-top:20px; }
+  .hint { color:var(--text-muted); font-weight:400; font-size:12px; margin-top:2px; }
+  input[type=text] {
+    width:100%; margin-top:8px; padding:10px 12px; background:var(--bg-primary); color:var(--text-primary);
+    border:1px solid var(--border-color); border-radius:10px; font:inherit; transition:border-color .15s, box-shadow .15s;
+  }
+  input::placeholder { color:var(--text-disabled); }
+  input:focus { outline:none; border-color:rgb(var(--accent-rgb) / .6); box-shadow:0 0 0 2px rgb(var(--accent-rgb) / .5); }
+  .badge { display:inline-block; font-family:"Noto Sans",sans-serif; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+  .badge.kv { background:rgb(var(--accent-rgb) / .15); color:var(--accent); }
+  .badge.env { background:rgba(107,114,128,.18); color:var(--text-muted); }
+  .row { display:flex; align-items:center; gap:14px; margin-top:28px; }
+  button {
+    background:var(--accent); color:#0F1117; border:0; border-radius:12px; padding:11px 20px;
+    font:inherit; font-weight:700; cursor:pointer; transition:filter .15s;
+  }
+  button:hover { filter:brightness(1.1); }
+  button:active { filter:brightness(.9); }
+  button:disabled { opacity:.4; cursor:default; filter:none; }
+  .status { font-size:13px; font-weight:500; }
+  .status.ok { color:var(--ok); }
+  .status.err { color:var(--err); }
+  .meta { color:var(--text-muted); font-size:12px; margin-top:24px; }
+  :focus-visible { outline:2px solid rgb(var(--accent-rgb) / .75); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>PunchIn Email — Admin</h1>
+  <div class="head">
+    <span class="mark" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F1117" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+    </span>
+    <h1>PunchIn Email — Admin</h1>
+  </div>
   <p class="sub">Signed in as <strong id="who">…</strong> · relay domain <code id="relayDomain"></code></p>
   <form id="form" class="card" autocomplete="off">
     <label>Forwarding address <span id="forwardToSrc" class="badge"></span></label>

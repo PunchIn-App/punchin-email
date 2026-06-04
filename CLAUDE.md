@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.2.2
+**Version:** 1.2.3
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -79,6 +79,12 @@ verifies the Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`): signature agains
 the team JWKS, plus AUD / issuer / expiry. Mutations also require a same-origin
 `Origin`. Editable settings live in the `EMAIL_THREADS` KV under
 `settings:v1` (no TTL); `RELAY_DOMAIN` is not editable.
+
+The page (`renderAdminPage` in `src/admin.js`) is self-contained HTML/CSS/JS with
+no build step, but mirrors the main [`punchin`](https://github.com/PunchIn-App/punchin)
+app's design system: Noto Sans / Display / Mono typography (loaded from Google
+Fonts), the app's dark-slate palette and amber accent, and its card / input /
+button conventions. Keep it visually consistent with that app when editing.
 
 ## Robustness Guards (do not weaken without rationale)
 

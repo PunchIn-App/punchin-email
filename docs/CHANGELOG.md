@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.3] — 2026-06-03
+
+### Changed
+- Admin — restyled the admin UI to match the main PunchIn app's design system:
+  Noto Sans / Noto Sans Display / Noto Sans Mono typography, the app's
+  dark-slate palette and amber accent, and its card / input / button
+  conventions. The page now loads the Noto family from Google Fonts (with a
+  system-font fallback), consistent with the app.
+
+---
+
 ## [1.2.2] — 2026-06-03
 
 ### Security
