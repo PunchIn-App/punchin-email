@@ -9,6 +9,7 @@ name: Notify project status update
 on:
   release:
     types: [published]
+  workflow_dispatch: # manual relay (also handy for verifying the PAT's dispatch scope)
 
 permissions: {}
 
@@ -20,9 +21,11 @@ jobs:
         with:
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
+            const tag = context.payload.release?.tag_name
+              || (await github.rest.repos.getLatestRelease({ owner: context.repo.owner, repo: context.repo.repo })).data.tag_name;
             await github.rest.repos.createDispatchEvent({
               owner: 'PunchIn-App', repo: 'punchin',
               event_type: 'email-release',
-              client_payload: { repo: 'punchin-email', tag: context.payload.release.tag_name },
+              client_payload: { repo: 'punchin-email', tag },
             });
-            core.info(`Relayed punchin-email ${context.payload.release.tag_name} → punchin`);
+            core.info(`Relayed punchin-email ${tag} → punchin`);
