@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.5] — 2026-06-04
+
+### Changed
+- Admin — the brand mark now uses the PunchIn app's actual logo geometry (the
+  lucide `Clock` icon on a rounded accent square) instead of a hand-drawn
+  approximation.
+
+---
+
 ## [1.2.4] — 2026-06-04
 
 ### Fixed

@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.2.4
+**Version:** 1.2.5
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -85,8 +85,9 @@ no build step, but mirrors the main [`punchin`](https://github.com/PunchIn-App/p
 app's design system: Noto Sans / Display / Mono typography (loaded from Google
 Fonts), the app's dark-slate palette and default accent (`#1f6feb` — the app's
 runtime default; the amber in its `index.css` is only a static fallback), and its
-card / input / button conventions. Keep it visually consistent with that app when
-editing.
+card / input / button conventions. The brand mark is the app's logo — a lucide
+`Clock` (`circle r=10` + `polyline 12 6 12 12 16 14`, dark `#0F1117` ink) on a
+rounded accent square. Keep it visually consistent with that app when editing.
 
 ## Robustness Guards (do not weaken without rationale)
 
