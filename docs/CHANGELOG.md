@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.6] — 2026-06-04
+
+### Added
+- Admin — an **About this worker** section on the admin page: a plain-language
+  summary of what the relay does, plus version, relay domain, auth model, and
+  links to the source, changelog, and security policy.
+- README — a top-level **About** section summarizing what/for/stack/state/status
+  /license at a glance.
+- Docs — a **Cutting a release** checklist in `CONTRIBUTING.md` (tag → push →
+  `gh release create vX.Y.Z` from the changelog notes → deploy), linked from the
+  README Deploy section. (internal)
+
+---
+
 ## [1.2.5] — 2026-06-04
 
 ### Changed

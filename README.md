@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=1f6feb)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.2.5-1f6feb?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.6-1f6feb?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -18,6 +18,23 @@ This is the infrastructure behind the contact addresses in the main
 [PunchIn](https://github.com/PunchIn-App/punchin) project's governance docs:
 CLA → `cla@`, security → `cve@` (with `cve+<number>@` sub-addressing), conduct →
 `abuse@`.
+
+## About
+
+| | |
+| --- | --- |
+| **What** | A single-purpose Cloudflare Email Worker: inbound role-alias forwarding plus a stateless two-way reply relay, with a small Access-gated admin UI for runtime config. |
+| **For** | The `@trackmytime.today` contact addresses behind the [PunchIn](https://github.com/PunchIn-App/punchin) project's governance docs. Self-hostable for any domain on Cloudflare Email Routing. |
+| **Stack** | Cloudflare Email Workers + Workers KV + Email Sending binding. No framework, no build step, no database. |
+| **State** | Thread mappings live in KV with a 30-day TTL; admin-editable settings live in KV under `settings:v1`. Nothing is persisted beyond that. |
+| **Status** | Stable — v1.2.6. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for history. |
+| **License** | [Apache-2.0](LICENSE). Security policy: [`SECURITY.md`](SECURITY.md). |
+
+The design priority is **privacy and least surprise**: your personal inbox is
+never exposed to correspondents, every conversation stays under its public alias,
+and unexpected mail is rejected with a clear reason rather than silently dropped.
+See [Robustness & Safety Guards](#robustness--safety-guards) for the specific
+protections.
 
 ## Why
 
@@ -211,6 +228,9 @@ npm run dev       # wrangler dev (local worker)
 ```bash
 npm run deploy    # wrangler deploy
 ```
+
+Cutting a tagged release (tag → `gh release create vX.Y.Z` → deploy) is
+documented in [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md#cutting-a-release).
 
 ## Contributing
 

@@ -118,6 +118,31 @@ A version bump commit must update **all** of the following in the same PR:
 
 Commit message convention: `chore: bump to vX.Y.Z`
 
+### Cutting a release
+
+Once the version-bump PR is merged to `main`, publish the release so the
+GitHub sidebar and the version badge line up with the code:
+
+1. Make sure `main` is up to date and green: `git checkout main && git pull`,
+   then `npm test` and `npm run check`.
+2. Tag the release commit: `git tag -a vX.Y.Z -m "vX.Y.Z"` (annotated tags only).
+3. Push the tag: `git push origin vX.Y.Z`.
+4. **Create a GitHub release** from the tag, using the matching
+   `docs/CHANGELOG.md` section as the notes:
+
+   ```bash
+   gh release create vX.Y.Z \
+     --title "vX.Y.Z" \
+     --notes-file <(sed -n '/## \[X.Y.Z\]/,/^## \[/p' docs/CHANGELOG.md | sed '$d')
+   ```
+
+   (Or `gh release create vX.Y.Z --generate-notes` to let GitHub draft the
+   notes from merged PRs, then edit to match the changelog.)
+5. Deploy: `npm run deploy`.
+
+The tag name (`vX.Y.Z`) must match the `package.json` version exactly. Don't
+create a release for a version that isn't yet on `main`.
+
 ---
 
 ## Documentation Requirements

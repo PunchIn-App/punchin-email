@@ -6,6 +6,10 @@ import { getSettings, updateSettings } from './settings.js';
 
 const EDITABLE_FIELDS = ['forwardTo', 'allowedAliases', 'contactUrl'];
 
+// Kept in sync with package.json / CLAUDE.md on each behaviour change.
+const VERSION = '1.2.6';
+const REPO_URL = 'https://github.com/PunchIn-App/punchin-email';
+
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -146,6 +150,16 @@ function renderAdminPage() {
   .status.ok { color:var(--ok); }
   .status.err { color:var(--err); }
   .meta { color:var(--text-muted); font-size:12px; margin-top:24px; }
+  .about { margin-top:20px; }
+  .about h2 { font-family:"Noto Sans Display","Noto Sans",sans-serif; font-weight:700; font-size:15px; color:var(--text-primary); margin:0 0 10px; }
+  .about p { margin:0 0 12px; font-size:13px; color:var(--text-secondary); }
+  .about p:last-of-type { margin-bottom:0; }
+  .about dl { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin:0 0 14px; font-size:13px; }
+  .about dt { color:var(--text-muted); }
+  .about dd { margin:0; color:var(--text-secondary); }
+  .about .links { display:flex; flex-wrap:wrap; gap:8px 18px; font-size:13px; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
   :focus-visible { outline:2px solid rgb(var(--accent-rgb) / .75); outline-offset:2px; }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
@@ -178,6 +192,25 @@ function renderAdminPage() {
     </div>
     <div id="meta" class="meta"></div>
   </form>
+
+  <section class="card about" aria-labelledby="aboutHead">
+    <h2 id="aboutHead">About this worker</h2>
+    <p>A Cloudflare Email Worker that gives the relay domain two-way role
+       aliases. Inbound mail to an accepted alias is forwarded to the address above;
+       when you hit <strong>Reply</strong>, the response goes back out
+       <strong>from the alias</strong> to the original sender — your inbox stays
+       private and no "From" picking is required.</p>
+    <dl>
+      <dt>Version</dt><dd>v${VERSION}</dd>
+      <dt>Relay domain</dt><dd><code id="relayDomain2"></code></dd>
+      <dt>Auth</dt><dd>Cloudflare Access (fails closed)</dd>
+    </dl>
+    <p class="links">
+      <a href="${REPO_URL}" target="_blank" rel="noopener noreferrer">Source &amp; docs ↗</a>
+      <a href="${REPO_URL}/blob/main/docs/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog ↗</a>
+      <a href="${REPO_URL}/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">Security policy ↗</a>
+    </p>
+  </section>
 </div>
 <script>
   var $ = function(id){ return document.getElementById(id); };
@@ -187,6 +220,7 @@ function renderAdminPage() {
     var s = data.settings;
     $('who').textContent = data.identity || 'unknown';
     $('relayDomain').textContent = s.relayDomain || '';
+    var rd2 = $('relayDomain2'); if (rd2) rd2.textContent = s.relayDomain || '';
     $('forwardTo').value = s.forwardTo || '';
     $('allowedAliases').value = s.allowedAliases || '';
     $('contactUrl').value = s.contactUrl || '';
