@@ -1,0 +1,28 @@
+# On a punchin-email release, relay to punchin so its single project-status-update
+# workflow posts one unified, whole-project status update. Keeping all status-update
+# logic in punchin avoids duplicate/fragmented posts.
+#
+# Runs under ADD_TO_PROJECT_PAT, which must have Contents: write on punchin to
+# send the repository_dispatch.
+name: Notify project status update
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'PunchIn-App', repo: 'punchin',
+              event_type: 'email-release',
+              client_payload: { repo: 'punchin-email', tag: context.payload.release.tag_name },
+            });
+            core.info(`Relayed punchin-email ${context.payload.release.tag_name} → punchin`);
