@@ -102,8 +102,8 @@ function renderAdminPage() {
   /* Design tokens mirror the main PunchIn app (src/index.css). */
   :root {
     color-scheme: dark;
-    --accent-rgb: 245 158 11;
-    --accent: rgb(245 158 11);
+    --accent-rgb: 31 111 235;
+    --accent: rgb(31 111 235);
     --bg-primary:#0F1117; --bg-secondary:#161923; --bg-tertiary:#1E2232;
     --border-color:#2A2F45;
     --text-primary:#FFFFFF; --text-secondary:#E2E8F0; --text-muted:#6B7280; --text-disabled:#374151;

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.4] — 2026-06-04
+
+### Fixed
+- Admin — corrected the admin-UI accent to the app's default `#1f6feb`. 1.2.3
+  used the amber `--accent-rgb` from the app's `index.css`, but that is only a
+  static fallback; the app sets its accent at runtime (default `#1f6feb`).
+
+---
+
 ## [1.2.3] — 2026-06-03
 
 ### Changed

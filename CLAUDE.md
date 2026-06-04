@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.2.3
+**Version:** 1.2.4
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -83,8 +83,10 @@ the team JWKS, plus AUD / issuer / expiry. Mutations also require a same-origin
 The page (`renderAdminPage` in `src/admin.js`) is self-contained HTML/CSS/JS with
 no build step, but mirrors the main [`punchin`](https://github.com/PunchIn-App/punchin)
 app's design system: Noto Sans / Display / Mono typography (loaded from Google
-Fonts), the app's dark-slate palette and amber accent, and its card / input /
-button conventions. Keep it visually consistent with that app when editing.
+Fonts), the app's dark-slate palette and default accent (`#1f6feb` — the app's
+runtime default; the amber in its `index.css` is only a static fallback), and its
+card / input / button conventions. Keep it visually consistent with that app when
+editing.
 
 ## Robustness Guards (do not weaken without rationale)
 
