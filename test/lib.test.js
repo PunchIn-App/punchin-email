@@ -89,6 +89,15 @@ describe('addressesEqual', () => {
     expect(addressesEqual('', '')).toBe(false);
     expect(addressesEqual(null, undefined)).toBe(false);
   });
+
+  it('extracts the first <addr> and tolerates malformed brackets quickly', () => {
+    expect(addressesEqual('Name <a@b.com> <c@d.com>', 'a@b.com')).toBe(true);
+    // No closing bracket / empty brackets fall back to the raw value, and a
+    // pathological all-`<` value must not hang (polynomial-ReDoS regression).
+    expect(addressesEqual('a@b.com <', 'a@b.com <')).toBe(true);
+    expect(addressesEqual('<>', '<>')).toBe(true);
+    expect(addressesEqual('<'.repeat(100000), 'a@b.com')).toBe(false);
+  });
 });
 
 describe('isAutoSubmitted', () => {

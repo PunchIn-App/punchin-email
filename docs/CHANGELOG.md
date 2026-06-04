@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.2] — 2026-06-03
+
+### Security
+- Hardened — replaced the display-name unwrap regex in `normalizeAddress`
+  (`src/lib.js`) with linear index scans. The old `/<([^>]+)>/` match re-anchored
+  at every `<`, so a crafted `From`/`Reply-To` header value could force
+  quadratic backtracking (polynomial ReDoS, CWE-1333) on attacker-influenced
+  mail. Address comparison is unchanged for normal mail.
+- CI — the GitHub Actions workflow now declares a least-privilege
+  `permissions: contents: read` block.
+
+---
+
 ## [1.2.1] — 2026-06-03
 
 ### Changed

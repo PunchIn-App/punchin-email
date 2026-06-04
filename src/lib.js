@@ -80,9 +80,15 @@ export function addressesEqual(a, b) {
 
 function normalizeAddress(value) {
   if (!value) return '';
-  // Pull the address out of "Display Name <addr@host>" if present.
-  const angled = String(value).match(/<([^>]+)>/);
-  return (angled ? angled[1] : String(value)).trim().toLowerCase();
+  const s = String(value);
+  // Pull the address out of "Display Name <addr@host>" if present. Use index
+  // scans rather than a regex: matching `<([^>]+)>` re-anchors at every `<`, so
+  // a crafted header value (e.g. "<<<<<…") forces O(n^2) backtracking — a
+  // polynomial-ReDoS vector on attacker-influenced header data. indexOf is O(n).
+  const lt = s.indexOf('<');
+  const gt = lt === -1 ? -1 : s.indexOf('>', lt + 1);
+  const inner = gt > lt + 1 ? s.slice(lt + 1, gt) : s;
+  return inner.trim().toLowerCase();
 }
 
 /**
