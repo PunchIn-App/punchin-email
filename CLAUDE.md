@@ -49,6 +49,10 @@ wrangler.toml        worker config, vars, and bindings
 - `isAllowedAlias(address, allowed)` — allowlist check against base local-part
 - `addressesEqual(a, b)` — case-insensitive address compare (unwraps display names)
 - `isAutoSubmitted(headers)` — detects bounces / vacation responders
+- `isValidEmailAddress(value)` — loose single-address check for admin input
+- `normalizeAliasList(input)` — clean/dedupe/sort alias local-parts; throws on an
+  invalid or reserved (`relay`) token
+- `normalizeContactUrl(value)` — validate the optional contact URL (empty or http(s))
 - `rewriteHeaders(rawText, from, to)` — swaps From/To, strips sender-bound headers
 
 ## Email Flow
