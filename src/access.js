@@ -1,8 +1,11 @@
 // Cloudflare Access authentication for the admin UI.
 //
 // The admin route sits behind a Cloudflare Access self-hosted application.
-// Access authenticates the user (GitHub login) at the edge and injects a signed
-// JWT in the `Cf-Access-Jwt-Assertion` header. We verify that JWT here against
+// Access authenticates the user (Cloudflare account login) at the edge and
+// injects a signed JWT in the `Cf-Access-Jwt-Assertion` header. The verification
+// below is identity-provider agnostic — it only checks the Access JWT, so the
+// login method (Cloudflare account, OTP, etc.) can change without code changes.
+// We verify that JWT here against
 // the team's JWKS and the application's AUD so the worker is safe even if the
 // route is reached directly — and we FAIL CLOSED if Access isn't configured.
 

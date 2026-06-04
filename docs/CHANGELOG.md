@@ -5,13 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Admin — wired the Cloudflare Access application by setting `ACCESS_AUD` and
+  `ACCESS_TEAM_DOMAIN` in `wrangler.toml`. The admin UI no longer fails closed
+  (503); requests are now verified against the configured Access app.
+- Docs — the admin-UI auth guidance (README, `src/access.js` comment) now
+  describes **Cloudflare account login** as the identity method instead of
+  GitHub. The JWT verification itself is identity-provider agnostic and is
+  unchanged.
+
+---
+
 ## [1.2.0] — 2026-06-03
 
 ### Added
 - Admin — the worker now serves a small admin UI (and `GET/PUT /api/settings`)
-  from a `fetch()` handler, gated by Cloudflare Access (GitHub login). From it you
-  can change the forwarding address, the accepted aliases, and the contact URL
-  without a redeploy.
+  from a `fetch()` handler, gated by Cloudflare Access (Cloudflare account login).
+  From it you can change the forwarding address, the accepted aliases, and the
+  contact URL without a redeploy.
 - Settings — these three values are now read from a single KV record, layered
   over the `wrangler.toml` / secret defaults; the email handlers read the
   effective settings on each message. `RELAY_DOMAIN` stays static.

@@ -20,8 +20,8 @@ CONTACT_URL     = "https://trackmytime.today"
 # either is blank, the admin UI fails closed (returns 503) and only email runs.
 #   ACCESS_AUD         — the application Audience (AUD) tag
 #   ACCESS_TEAM_DOMAIN — your team domain, e.g. yourteam.cloudflareaccess.com
-ACCESS_AUD         = ""
-ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD         = "3ce4393d6c58c90bb667a8959ffc8eade42c64133a2c854cfd1c4806eef933a6"
+ACCESS_TEAM_DOMAIN = "punchin-app.cloudflareaccess.com"
 
 [[kv_namespaces]]
 binding = "EMAIL_THREADS"

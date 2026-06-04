@@ -160,25 +160,29 @@ stays fixed.
 
 **This route is public on `*.workers.dev`, so it must be gated.** Auth is done with
 [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/)
-(GitHub login). The worker independently verifies the Access JWT and **fails
-closed** — until `ACCESS_AUD` + `ACCESS_TEAM_DOMAIN` are set, every request gets a
-`503`.
+using your **Cloudflare account** as the identity — you sign in with the same
+Cloudflare login that owns the worker, no third-party identity provider required.
+The worker independently verifies the Access JWT and **fails closed** — until
+`ACCESS_AUD` + `ACCESS_TEAM_DOMAIN` are set, every request gets a `503`.
 
 ### Setup
 
 1. **Cloudflare dashboard → your `punchin-email` worker → Settings → Domains &
    Routes → Enable Cloudflare Access** (or **Zero Trust → Access → Applications →
    Add → Self-hosted** targeting `punchin-email.<subdomain>.workers.dev`).
-2. **Identity provider:** add **GitHub** as a login method in Zero Trust →
-   Settings → Authentication.
-3. **Policy:** allow only you — e.g. an `Allow` policy with **Include → GitHub →**
-   your GitHub login / email.
+2. **Identity provider:** in **Zero Trust → Settings → Authentication**, use the
+   built-in **Cloudflare** login method (the “Login with Cloudflare” provider).
+   Leave **One-time PIN** off so the only way in is a Cloudflare account, and
+   restrict it to members of your account.
+3. **Policy:** allow only yourself — e.g. an `Allow` policy with **Include →
+   Login Methods → Cloudflare** (optionally narrowed to your account-member
+   email).
 4. From the application's config, copy the **Application Audience (AUD) tag** and
    your **team domain** (`<team>.cloudflareaccess.com`) into `ACCESS_AUD` and
    `ACCESS_TEAM_DOMAIN` in `wrangler.toml`, then deploy. Turn on **“Validate
    Access JWTs”** so unauthenticated requests are blocked at the edge too.
-5. Visit `https://punchin-email.<subdomain>.workers.dev/`, log in with GitHub, and
-   you'll get the settings form.
+5. Visit `https://punchin-email.<subdomain>.workers.dev/`, sign in with your
+   Cloudflare account, and you'll get the settings form.
 
 > Defence in depth: Access blocks unauthenticated requests at the edge **and** the
 > worker verifies the JWT (signature + AUD + issuer + expiry) itself, so the admin
