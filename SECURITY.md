@@ -16,12 +16,17 @@ The PunchIn Email Worker is the Cloudflare Email Worker that powers the
 `@trackmytime.today` role aliases (`cla@`, `licensing@`, `cve@`, `abuse@`) and
 the two-way reply relay. In scope are:
 
-- The worker source (`src/index.js`, `src/lib.js`) and its routing logic.
+- The worker source (`src/index.js`, `src/lib.js`, `src/settings.js`,
+  `src/access.js`, `src/admin.js`) and its routing logic.
 - The thread-mapping store in the `EMAIL_THREADS` KV namespace. Entries hold the
   original sender address, the alias the mail was addressed to, and a timestamp,
-  keyed by a random 64-bit thread id with a 30-day TTL.
+  keyed by a random 64-bit thread id with a 30-day TTL. The same namespace holds
+  the runtime settings record (`settings:v1`).
 - The inbound forward path and the outbound relay path (header rewriting and
   Email Sending).
+- The admin UI (`fetch()` handler) and its Cloudflare Access authentication,
+  which fails closed and verifies the Access JWT (signature + AUD + issuer +
+  expiry) on every request.
 
 Out of scope:
 

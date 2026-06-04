@@ -59,9 +59,9 @@ to it via Cloudflare Email Routing — see the **Email Routing setup** section o
 
 Configuration lives in `wrangler.toml`:
 
-- **Non-secret vars** (`RELAY_DOMAIN`, `ALLOWED_ALIASES`) go in the `[vars]`
-  block. These are committed to the repo, so **never put a secret or personal
-  address here.**
+- **Non-secret vars** (`RELAY_DOMAIN`, `ALLOWED_ALIASES`, `CONTACT_URL`,
+  `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`) go in the `[vars]` block. These are
+  committed to the repo, so **never put a secret or personal address here.**
 - **`FORWARD_TO`** is the personal destination inbox (PII), so it is **not** in
   `[vars]`. Set it as a secret with `wrangler secret put FORWARD_TO` and read it
   from `env.FORWARD_TO` at runtime. Any other secret follows the same rule.
@@ -171,6 +171,8 @@ Rules:
 - Handler behavior (including every rejection path) is covered by
   `test/handlers.test.js` using the mocked message / KV / send doubles in
   `test/helpers.js`
+- Runtime settings, Access JWT verification, and the admin router each have their
+  own suites (`test/settings.test.js`, `test/access.test.js`, `test/admin.test.js`)
 - Do not remove or weaken existing tests
 
 ---

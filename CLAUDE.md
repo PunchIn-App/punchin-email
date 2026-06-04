@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.2.0
+**Version:** 1.2.1
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in

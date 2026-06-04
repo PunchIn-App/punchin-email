@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=1f6feb)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.2.0-1f6feb?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.1-1f6feb?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -70,16 +70,24 @@ The worker's `email()` entrypoint routes by recipient: anything starting with
 - **Cloudflare Email Workers** (`email()` handler) — inbound routing + relay
 - **Workers KV** (`EMAIL_THREADS`) — thread mappings, 30-day TTL
 - **Cloudflare Email Sending** (`EMAIL_SENDING`) — outbound relay
+- **Cloudflare Access** — authenticates the admin UI (`fetch()` handler); the
+  worker verifies the Access JWT itself
 - **Vitest** — unit + handler tests
 - **Wrangler** — local dev, dry-run, deploy
 
 ```
 src/
-  index.js   email() entrypoint + handleInbound / handleRelay
-  lib.js     pure, runtime-agnostic helpers (unit-tested directly)
+  index.js    email() + fetch() entrypoints + handleInbound / handleRelay
+  lib.js      pure, runtime-agnostic helpers (unit-tested directly)
+  settings.js KV-backed runtime settings layered over env defaults
+  access.js   Cloudflare Access JWT verification for the admin UI (fails closed)
+  admin.js    admin UI page + GET/PUT /api/settings
 test/
   lib.test.js        helper unit tests
   handlers.test.js   handler tests with mocked message / KV / send bindings
+  settings.test.js   getSettings / updateSettings over mocked KV
+  access.test.js     Access claim + JWT signature verification
+  admin.test.js      admin router (GET/PUT /api/settings) tests
   helpers.js         test doubles (KV, message, env)
   mocks/             stub for the `cloudflare:email` module
 docs/

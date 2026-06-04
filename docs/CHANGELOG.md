@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [1.2.1] — 2026-06-03
 
 ### Changed
 - Admin — wired the Cloudflare Access application by setting `ACCESS_AUD` and
