@@ -37,9 +37,17 @@ docs/
   CHANGELOG.md       Keep a Changelog history
 .github/
   CONTRIBUTING.md    contribution workflow + conventions
-  workflows/ci.yml   CI: npm test + wrangler dry-run
+  workflows/
+    ci.yml                    CI: npm test + wrangler dry-run
+    project-automation.yml    adds new issues/PRs to the shared PunchIn project board (#3) + sets Labels/Priority/Size/dates; clears assignees on close
+    milestone-on-release.yml  on release: create the vX.Y.Z milestone + assign merged PRs since the last release
+    notify-status-update.yml  on release: relay to punchin (repository_dispatch: email-release) so it posts a unified, whole-project status update
 wrangler.toml        worker config, vars, and bindings
 ```
+
+## Project board automation
+
+This repo is tracked on the shared **[PunchIn project board](https://github.com/orgs/PunchIn-App/projects/3)** alongside `punchin`. The three project workflows above auto-add and annotate issues/PRs and create release milestones; they run under the `ADD_TO_PROJECT_PAT` secret (Projects + Issues read/write, Contents read/write). **Status** is owned by the project's built-in workflows; **status updates** (the project's "Updates" panel) are posted from `punchin` — this repo's `notify-status-update.yml` just relays its releases there, so every update covers the whole project. See `punchin`'s CLAUDE.md → "Project board automation" for the full description.
 
 ### Helpers (`src/lib.js`)
 
