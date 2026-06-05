@@ -7,7 +7,7 @@ import { getSettings, updateSettings } from './settings.js';
 const EDITABLE_FIELDS = ['forwardTo', 'allowedAliases', 'contactUrl'];
 
 // Kept in sync with package.json / CLAUDE.md on each behaviour change.
-const VERSION = '1.2.6';
+const VERSION = '1.3.0';
 const REPO_URL = 'https://github.com/PunchIn-App/punchin-email';
 
 function jsonResponse(obj, status = 200) {

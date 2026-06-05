@@ -5,6 +5,72 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.0] — 2026-06-04
+
+A security- and robustness-hardening release closing the 18 findings of the
+June 2026 internal assessment (tracker #45). No new features; several changes are
+observable in delivered mail (broader loop protection, long-lived threads, a
+fixed body-loss bug), so this is a `MINOR` per the versioning tiebreaker.
+
+### Security
+
+- **Admin CSRF** — `PUT /api/settings` now requires a **present**, same-origin
+  `Origin` header. A request that omitted the header entirely was previously
+  allowed through; browsers always attach `Origin` on a state-changing fetch, so
+  its absence is now treated as a forged / non-browser caller. Defence-in-depth
+  behind Cloudflare Access. (#28, #40)
+- **Header-injection guard** — `rewriteHeaders` strips CR/LF from the injected
+  `From`/`To`, so a crafted alias or sender address can't smuggle extra headers
+  into the relayed message. (#27)
+- **Access JWT clock skew** — `validateAccessClaims` applies a symmetric
+  60-second leeway to the `exp` check (matching the existing `nbf` leeway, via a
+  shared `CLOCK_SKEW_SEC` constant), so minor clock drift between the worker and
+  Cloudflare's issuer no longer locks out a valid admin. Tokens expired beyond
+  the window — and missing / non-numeric `exp` — are still rejected. (#29)
+
+### Fixed
+
+- **LF-only messages lost their body** — header rewriting now normalizes bare-LF
+  / bare-CR input to CRLF before splitting headers from body, so a reply that
+  uses LF-only line endings no longer drops every header and its body. (#37)
+- **Long-lived threads expired mid-conversation** — a successful relay now
+  **refreshes** the thread mapping's 30-day KV TTL, so an actively used thread no
+  longer ages out and bounces a legitimate reply; idle threads still expire. The
+  refresh is best-effort and never fails the already-sent relay. (#32)
+- **Opaque handler failures** — a corrupt thread record is rejected with a clear
+  reason instead of throwing, and transient KV / send failures propagate so
+  Cloudflare retries rather than permanently bouncing legitimate mail. (#34)
+- **Relay-id probing** — `parseRelayThreadId` anchors to exactly the 16-hex-char
+  id length the worker emits, so an odd-length probe address can't trigger a KV
+  lookup. (#36)
+
+### Changed
+
+- **Broader loop protection** — `isAutoSubmitted` now also drops
+  `Precedence: auto_replied`, `X-Autoresponder`, and RFC 2369 mailing-list
+  headers (`List-Id` / `List-Unsubscribe` / `List-Help` / `List-Post`).
+  Person-to-person mail is unaffected. (#35, #43)
+
+### Documentation
+
+- **CLAUDE.md** — documented the deliberately asymmetric threading model (and why
+  the outbound carries no `relay+` `Reply-To`), the TTL-refresh behaviour, the
+  error-handling policy, and the accepted risk that relay auth trusts the
+  unauthenticated SMTP envelope sender (with SPF/DKIM/DMARC as possible future
+  hardening). Corrected the header-rewrite guard description to "allowlisting."
+  (#30, #31, #33)
+
+### Internal
+
+- **Test fidelity & coverage** — the Email Sending test double now structurally
+  validates the rewritten raw (CRLF endings, header/body delimiter,
+  address-bearing `From`/`To`), so a malformed rewrite fails the suite instead of
+  shipping green. Added coverage for the JWT `alg=none` / unparseable / JWKS-fail
+  / `nbf` paths, the missing-`Origin` CSRF case, the TTL refresh, and the handler
+  error paths. Suite grew from 65 to 89 tests. (#38, #39, #41, #42, #44)
+
+---
+
 ## [1.2.6] — 2026-06-04
 
 ### Added
