@@ -123,8 +123,28 @@ describe('isAutoSubmitted', () => {
     expect(isAutoSubmitted(h({ 'x-auto-response-suppress': 'All' }))).toBe(true);
   });
 
+  it('covers the additional auto-reply / list header variants (#35, #43)', () => {
+    // Auto-Submitted variants
+    expect(isAutoSubmitted(h({ 'auto-submitted': 'auto-generated' }))).toBe(true);
+    expect(isAutoSubmitted(h({ 'auto-submitted': 'auto-notified' }))).toBe(true);
+    // Precedence variants
+    expect(isAutoSubmitted(h({ precedence: 'list' }))).toBe(true);
+    expect(isAutoSubmitted(h({ precedence: 'auto_reply' }))).toBe(true);
+    expect(isAutoSubmitted(h({ precedence: 'auto_replied' }))).toBe(true);
+    expect(isAutoSubmitted(h({ precedence: 'junk' }))).toBe(true);
+    // Autoresponder header variants
+    expect(isAutoSubmitted(h({ 'x-autorespond': 'yes' }))).toBe(true);
+    expect(isAutoSubmitted(h({ 'x-autoresponder': 'vacation' }))).toBe(true);
+    // Mailing-list (RFC 2369) headers
+    expect(isAutoSubmitted(h({ 'list-id': '<list.example.com>' }))).toBe(true);
+    expect(isAutoSubmitted(h({ 'list-unsubscribe': '<mailto:x>' }))).toBe(true);
+    expect(isAutoSubmitted(h({ 'list-help': '<mailto:help>' }))).toBe(true);
+    expect(isAutoSubmitted(h({ 'list-post': '<mailto:post>' }))).toBe(true);
+  });
+
   it('returns false for ordinary mail', () => {
     expect(isAutoSubmitted(h({ subject: 'hi' }))).toBe(false);
+    expect(isAutoSubmitted(h({ precedence: 'normal' }))).toBe(false);
     expect(isAutoSubmitted(null)).toBe(false);
   });
 });

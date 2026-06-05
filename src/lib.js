@@ -105,12 +105,15 @@ export function isAutoSubmitted(headers) {
   if (autoSubmitted && autoSubmitted !== 'no') return true;
 
   const precedence = (get('Precedence') || '').toLowerCase();
-  if (['bulk', 'list', 'auto_reply', 'junk'].includes(precedence)) return true;
+  if (['bulk', 'list', 'auto_reply', 'auto_replied', 'junk'].includes(precedence)) return true;
 
-  if (get('X-Autoreply') || get('X-Autorespond')) return true;
+  if (get('X-Autoreply') || get('X-Autorespond') || get('X-Autoresponder')) return true;
 
-  const suppress = get('X-Auto-Response-Suppress');
-  if (suppress) return true;
+  if (get('X-Auto-Response-Suppress')) return true;
+
+  // Mailing-list traffic (RFC 2369 List-* headers) is machine-generated; never
+  // relay it back out (issue #35).
+  if (get('List-Id') || get('List-Unsubscribe') || get('List-Help') || get('List-Post')) return true;
 
   return false;
 }

@@ -108,6 +108,25 @@ describe('handleRelay', () => {
     expect(env.EMAIL_SENDING.sent).toHaveLength(0);
   });
 
+  it('checks sender authorization before the auto-submitted drop (#44)', async () => {
+    // An auto-submitted header from an *unauthorized* sender must still be
+    // rejected as unauthorized — the From==FORWARD_TO gate runs first, so the
+    // auto-submitted reason never leaks to a sender who has no business here.
+    const env = makeEnv();
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'attacker@evil.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      headers: { 'Auto-Submitted': 'auto-replied' },
+      raw: 'Subject: x\r\n\r\nhi',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(msg.calls.reject).toEqual(['Unauthorized relay sender']);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
+  });
+
   it('rejects auto-submitted mail to prevent loops', async () => {
     const env = makeEnv();
     setupThread(env);
