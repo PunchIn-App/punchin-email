@@ -197,7 +197,7 @@ Bindings:
 
 ## Adding Features — Checklist
 
-1. Put new pure logic in `src/lib.js`; keep `index.js` to entrypoint + handlers.
+1. Put new pure logic in `src/lib.js`; keep `index.js` to its `email()` / `fetch()` entrypoints + handlers.
 2. Add/extend tests in `test/` (cover every new rejection path).
 3. Run `npm test` and `npm run check`.
 4. Update this file, `README.md`, and `docs/CHANGELOG.md` as required.

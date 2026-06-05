@@ -208,8 +208,8 @@ The full conventions are in [`CLAUDE.md`](../CLAUDE.md). Key rules:
 
 - **Keep logic pure where possible** — runtime-agnostic helpers go in
   `src/lib.js` (no `cloudflare:email` import) so they can be unit-tested under
-  plain Node. `src/index.js` holds only the `email()` entrypoint and the two
-  handlers, which are exported for testing.
+  plain Node. `src/index.js` holds the `email()` and `fetch()` entrypoints and the
+  two handlers, which are exported for testing.
 - **Never weaken the safety guards** — the alias allowlist (inbound), the relay
   sender verification (`From == FORWARD_TO`), and the auto-submitted drop exist
   to prevent open forwarding, alias spoofing, and mail loops. Changes that relax

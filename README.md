@@ -65,9 +65,12 @@ ordinary inbox.
    `EMAIL_THREADS` KV namespace (30-day TTL), and forwards the message to
    `FORWARD_TO` with `Reply-To: relay+<id>@<RELAY_DOMAIN>`.
 2. **Relay** (`handleRelay`): your reply lands on `relay+<id>@…`. The worker
-   verifies the sender, looks up the thread, rewrites the `From`/`To` headers
-   (preserving `Subject`, `Message-ID`, `In-Reply-To`, `References` so threading
-   survives), and sends it out via the `EMAIL_SENDING` binding.
+   verifies the sender (`From == FORWARD_TO`, plus a defence-in-depth check on
+   the SPF/DKIM/DMARC verdict Cloudflare stamped on the reply), looks up the
+   thread, rewrites the `From`/`To` headers (preserving `Subject`, `Message-ID`,
+   `In-Reply-To`, `References` so threading survives), and sends it out via the
+   `EMAIL_SENDING` binding. A successful relay also refreshes the thread's KV TTL
+   so an actively used conversation doesn't age out mid-thread.
 
 The worker's `email()` entrypoint routes by recipient: anything starting with
 `relay+` goes to the relay handler, everything else to the inbound handler.
@@ -77,9 +80,9 @@ The worker's `email()` entrypoint routes by recipient: anything starting with
 | Guard | Where | Why |
 | --- | --- | --- |
 | **Alias allowlist** (`ALLOWED_ALIASES`) | inbound | A catch-all route sends *every* address to the worker. Only the configured base local-parts are forwarded; everything else is rejected, so the worker can't be abused as an open forwarder for the whole domain. |
-| **Relay sender verification** | relay | Only mail whose `From` matches `FORWARD_TO` is relayed. Without this, anyone who learned a thread id could send mail *from* your alias to the original sender. |
+| **Relay sender verification** | relay | Only mail whose `From` matches `FORWARD_TO` is relayed. Without this, anyone who learned a thread id could send mail *from* your alias to the original sender. As defence-in-depth on that header-trusting gate, the worker also consults the SPF/DKIM/DMARC verdict Cloudflare stamps on the reply and rejects one that demonstrably did **not** authenticate as the `FORWARD_TO` domain (fail-open — an absent/unrecognized verdict still relays). |
 | **Auto-submitted detection** | relay | Vacation responders / bounces (`Auto-Submitted`, `Precedence: bulk/list`, `X-Autoreply`, …) are not relayed, preventing mail loops. |
-| **Sender-header stripping** | relay rewrite | `Reply-To`, `Return-Path`, `Sender`, and the now-invalid `DKIM-Signature` are removed before re-sending; Cloudflare re-signs the outbound message for the domain. |
+| **Sender-header allowlisting** | relay rewrite | The rewrite keeps only an *allowlist* of headers the recipient needs to render/thread the reply (`Subject`, `Date`, `Message-ID`, `In-Reply-To`, `References`, `MIME-Version`, `Content-*`) and prepends a fresh `From`/`To`; everything else — trace/auth headers that can leak the inbox address (`Received`, `Authentication-Results`, `ARC-*`, `X-Google-*`, `Return-Path`, `Reply-To`, `Sender`, the now-invalid `DKIM-Signature`, …), including any future `X-` header — is dropped by default. Cloudflare re-signs the outbound message for the domain. |
 | **Graceful expiry** | relay | Replies to threads older than 30 days are rejected with a clear reason rather than silently dropped. |
 
 ## Tech Stack & Project Structure
