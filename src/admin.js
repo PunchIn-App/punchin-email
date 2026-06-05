@@ -56,8 +56,11 @@ export async function handleAdminRequest(request, env, identity) {
     if (request.method === 'PUT') {
       // CSRF defence: Access injects its header on any request that passes the
       // gate (including cross-site ones), so also require a same-origin Origin.
+      // The Origin must be *present* and match — a missing Origin is rejected
+      // too, since browsers attach it to every state-changing fetch and its
+      // absence signals a non-browser / forged caller (issue #28).
       const origin = request.headers.get('Origin');
-      if (origin && origin !== url.origin) {
+      if (origin !== url.origin) {
         return jsonResponse({ error: 'Cross-origin request blocked' }, 403);
       }
 

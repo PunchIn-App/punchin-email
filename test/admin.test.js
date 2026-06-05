@@ -76,6 +76,21 @@ describe('handleAdminRequest — PUT /api/settings', () => {
     expect(env.EMAIL_THREADS.store.has(SETTINGS_KEY)).toBe(false);
   });
 
+  it('blocks a PUT with no Origin header at all with 403 (#40)', async () => {
+    // A forged / non-browser caller can simply omit Origin. Browsers always
+    // attach it on a state-changing fetch, so a missing Origin must be rejected
+    // rather than waved through.
+    const env = makeEnv();
+    const res = await handleAdminRequest(
+      req('/api/settings', { method: 'PUT', body: { forwardTo: 'x@example.com' } }),
+      env,
+      'admin@example.com'
+    );
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/Cross-origin/);
+    expect(env.EMAIL_THREADS.store.has(SETTINGS_KEY)).toBe(false);
+  });
+
   it('rejects a non-JSON body with 400', async () => {
     const bad = new Request(ORIGIN + '/api/settings', {
       method: 'PUT',
