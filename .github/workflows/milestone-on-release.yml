@@ -1,13 +1,20 @@
-# When a release is published (step 9 of the release ritual — `gh release create
-# vX.Y.Z`), create a matching milestone and assign every merged PR that doesn't
-# yet have one. "No milestone" cleanly means "merged since the last release",
-# because the previous release already milestoned its PRs.
+# When a MINOR or MAJOR release is published (step 9 of the release ritual —
+# `gh release create vX.Y.0`), create a matching milestone and assign every
+# merged PR that doesn't yet have one.
 #
-# The sweep is additionally BOUNDED to PRs merged after the previous release's
-# tag commit, so a one-time un-milestoned backlog (e.g. releases published before
+# Milestones deliberately track MINOR/MAJOR version groupings only — a release
+# tag's patch component must be 0 for a milestone to fire. PATCH (bug-fix)
+# releases still publish + tag (releases fire on EVERY increment), but they do
+# NOT get their own milestone: their PRs roll up into the NEXT minor/major
+# milestone, so every PR is milestoned exactly once, at its minor/major grouping.
+#
+# "No milestone" then means "merged since the last minor/major release", because
+# that release already milestoned everything up to its point. The sweep is
+# additionally BOUNDED to PRs merged after the previous MINOR/MAJOR release's tag
+# commit, so a one-time un-milestoned backlog (e.g. releases published before
 # this workflow existed) can't all land in whichever release fires it first. The
-# bound uses the previous tag's *commit* date, not the release publish time,
-# which can be backfilled/batched and isn't a reliable boundary.
+# bound uses the tag's *commit* date, not the release publish time, which can be
+# backfilled/batched and isn't a reliable boundary.
 #
 # Runs under ADD_TO_PROJECT_PAT (the default GITHUB_TOKEN is kept read-only). The
 # PAT must grant Issues: read/write (create milestone + assign) and Contents:
@@ -32,6 +39,20 @@ jobs:
             const rel = context.payload.release;
             const tag = rel.tag_name;
 
+            // Milestones fire only on MINOR/MAJOR releases (patch component 0).
+            // Patch releases still ship + tag, but their PRs roll into the next
+            // minor/major milestone — so this workflow no-ops on a patch tag.
+            const semver = (t) => {
+              const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(t || '');
+              return m ? { major: +m[1], minor: +m[2], patch: +m[3] } : null;
+            };
+            const cur = semver(tag);
+            if (!cur) { core.info(`Tag ${tag} is not vX.Y.Z — skipping milestone.`); return; }
+            if (cur.patch !== 0) {
+              core.info(`${tag} is a patch release — milestones fire only on minor/major. Skipping.`);
+              return;
+            }
+
             // Create the milestone (closed, dated to the release); reuse if it exists.
             let ms;
             try {
@@ -45,13 +66,15 @@ jobs:
             }
             if (!ms) { core.setFailed('Could not create or find the milestone'); return; }
 
-            // Find the previous release (most recent published before this one) and
-            // resolve its tag to the *commit* date — the real "everything before here
-            // shipped earlier" boundary. Publish times can be batched/backfilled.
+            // Boundary = the previous MINOR/MAJOR release (the last milestone-bearing
+            // one), resolved to its tag *commit* date. Bounding to the previous patch
+            // tag would drop the intervening patch PRs; the previous minor/major sweeps
+            // them all in. Publish times can be batched/backfilled — use the commit date.
             const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
             const thisPub = new Date(rel.published_at || Date.now());
             const prev = releases
               .filter(r => r.id !== rel.id && r.published_at && new Date(r.published_at) < thisPub)
+              .filter(r => { const p = semver(r.tag_name); return p && p.patch === 0; })
               .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))[0];
             let since = null;
             if (prev) {
@@ -66,7 +89,7 @@ jobs:
             }
 
             // Assign every merged PR with no milestone, BOUNDED to "since the previous
-            // release" so an un-milestoned backlog can't all land in this milestone.
+            // minor/major release" so a backlog can't all land in one milestone.
             const q = since
               ? `repo:${owner}/${repo} is:pr is:merged no:milestone merged:>${since}`
               : `repo:${owner}/${repo} is:pr is:merged no:milestone`;

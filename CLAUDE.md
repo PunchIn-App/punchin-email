@@ -40,7 +40,7 @@ docs/
   workflows/
     ci.yml                    CI: npm test + wrangler dry-run
     project-automation.yml    adds new issues/PRs to the shared PunchIn project board (#3) + sets Labels/Priority/Size/dates; clears assignees on close
-    milestone-on-release.yml  on release: create the vX.Y.Z milestone + assign merged PRs since the last release
+    milestone-on-release.yml  on a MINOR/MAJOR release (vX.Y.0): create the vX.Y.0 milestone + assign merged PRs since the last minor/major release (patch releases publish but get no milestone; their PRs roll into the next minor/major)
     notify-status-update.yml  on release: relay to punchin (repository_dispatch: email-release) so it posts a unified, whole-project status update
 wrangler.toml        worker config, vars, and bindings
 ```
