@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import worker, { handleInbound, handleRelay } from '../src/index.js';
 import { THREAD_TTL_SECONDS } from '../src/lib.js';
-import { makeMessage, makeEnv } from './helpers.js';
+import { makeMessage, makeEnv, assertSendableRaw } from './helpers.js';
 
 describe('handleInbound', () => {
   it('stores a thread and forwards allowed aliases with a relay Reply-To', async () => {
@@ -92,6 +92,15 @@ describe('handleRelay', () => {
     expect(out.raw).toContain('From: cla@trackmytime.today');
     expect(out.raw).toContain('To: partner@corp.com');
     expect(msg.calls.reject).toHaveLength(0);
+
+    // Structural fidelity: the rewritten raw is a well-formed RFC-822 message the
+    // real Send binding could parse — a header/body delimiter, CRLF endings, and
+    // From:/To: as the first two header lines (issue #39).
+    expect(() => assertSendableRaw(out.raw)).not.toThrow();
+    expect(out.raw).toContain('\r\n\r\n');
+    const [line1, line2] = out.raw.split('\r\n');
+    expect(line1).toBe('From: cla@trackmytime.today');
+    expect(line2).toBe('To: partner@corp.com');
   });
 
   it('rejects relays from anyone other than the inbox owner', async () => {
@@ -313,5 +322,30 @@ describe('email() routing', () => {
     const msg = makeMessage({ from: 'p@corp.com', to: 'cla@trackmytime.today' });
 
     await expect(worker.email(msg, env)).rejects.toThrow(/KV/);
+  });
+});
+
+describe('Send-binding fidelity — assertSendableRaw (#39)', () => {
+  const wellFormed = 'From: cla@trackmytime.today\r\nTo: p@corp.com\r\nSubject: hi\r\n\r\nbody';
+
+  it('accepts a well-formed CRLF message with From/To and a delimiter', () => {
+    expect(() => assertSendableRaw(wellFormed)).not.toThrow();
+  });
+
+  it('rejects a message with no header/body delimiter', () => {
+    expect(() => assertSendableRaw('From: a@b\r\nTo: c@d\r\nSubject: hi')).toThrow(/delimiter/);
+  });
+
+  it('rejects bare-LF (non-CRLF) line endings', () => {
+    expect(() => assertSendableRaw('From: a@b\nTo: c@d\n\nbody')).toThrow(/CRLF/);
+  });
+
+  it('rejects a missing or address-less From/To', () => {
+    expect(() => assertSendableRaw('To: c@d\r\nSubject: hi\r\n\r\nbody')).toThrow(/From/);
+    expect(() => assertSendableRaw('From: a@b\r\nTo: nobody\r\n\r\nbody')).toThrow(/To/);
+  });
+
+  it('rejects a non-string raw', () => {
+    expect(() => assertSendableRaw(undefined)).toThrow(/non-empty string/);
   });
 });
