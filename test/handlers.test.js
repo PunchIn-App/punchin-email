@@ -64,7 +64,7 @@ describe('handleInbound', () => {
 describe('handleRelay', () => {
   const setupThread = (env) => {
     env.EMAIL_THREADS.store.set(
-      'abc123',
+      '0123456789abcdef',
       JSON.stringify({
         originalSender: 'partner@corp.com',
         aliasEmail: 'cla@trackmytime.today',
@@ -78,8 +78,8 @@ describe('handleRelay', () => {
     setupThread(env);
     const msg = makeMessage({
       from: 'owner@example.com',
-      to: 'relay+abc123@trackmytime.today',
-      raw: 'From: owner@example.com\r\nTo: relay+abc123@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
     });
 
     await handleRelay(msg, env);
@@ -98,7 +98,7 @@ describe('handleRelay', () => {
     setupThread(env);
     const msg = makeMessage({
       from: 'attacker@evil.com',
-      to: 'relay+abc123@trackmytime.today',
+      to: 'relay+0123456789abcdef@trackmytime.today',
       raw: 'Subject: x\r\n\r\nhi',
     });
 
@@ -113,7 +113,7 @@ describe('handleRelay', () => {
     setupThread(env);
     const msg = makeMessage({
       from: 'owner@example.com',
-      to: 'relay+abc123@trackmytime.today',
+      to: 'relay+0123456789abcdef@trackmytime.today',
       headers: { 'Auto-Submitted': 'auto-replied' },
       raw: 'Subject: ooo\r\n\r\nhi',
     });
@@ -141,7 +141,7 @@ describe('handleRelay', () => {
     const env = makeEnv();
     const msg = makeMessage({
       from: 'owner@example.com',
-      to: 'relay+deadbeef@trackmytime.today',
+      to: 'relay+beefbeefbeefbeef@trackmytime.today',
       raw: 'Subject: x\r\n\r\nhi',
     });
 
@@ -156,12 +156,12 @@ describe('email() routing', () => {
   it('routes relay+ addresses to the relay handler', async () => {
     const env = makeEnv();
     env.EMAIL_THREADS.store.set(
-      'abc123',
+      '0123456789abcdef',
       JSON.stringify({ originalSender: 'p@corp.com', aliasEmail: 'cla@trackmytime.today' })
     );
     const msg = makeMessage({
       from: 'owner@example.com',
-      to: 'relay+abc123@trackmytime.today',
+      to: 'relay+0123456789abcdef@trackmytime.today',
       raw: 'Subject: x\r\n\r\nhi',
     });
 
@@ -184,12 +184,12 @@ describe('email() routing', () => {
   it('is case-insensitive about the relay+ prefix', async () => {
     const env = makeEnv();
     env.EMAIL_THREADS.store.set(
-      'abc123',
+      '0123456789abcdef',
       JSON.stringify({ originalSender: 'p@corp.com', aliasEmail: 'cla@trackmytime.today' })
     );
     const msg = makeMessage({
       from: 'owner@example.com',
-      to: 'Relay+abc123@trackmytime.today',
+      to: 'Relay+0123456789abcdef@trackmytime.today',
       raw: 'Subject: x\r\n\r\nhi',
     });
 

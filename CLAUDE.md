@@ -107,8 +107,13 @@ rounded accent square. Keep it visually consistent with that app when editing.
 - **Relay sender verification** (`From == FORWARD_TO`) — prevents alias spoofing
   / open relay by anyone who learns a thread id.
 - **Auto-submitted drop** — prevents mail loops.
-- **Sender-header stripping** — removes `Reply-To`/`Return-Path`/`Sender` and the
-  now-invalid `DKIM-Signature`; Cloudflare re-signs outbound.
+- **Sender-header allowlisting** — the rewrite keeps only a fixed *allowlist* of
+  headers a recipient needs to render/thread the reply (`Subject`, `Date`,
+  `Message-ID`, `In-Reply-To`, `References`, `MIME-Version`, `Content-*`) and
+  drops everything else by default — so trace/auth headers that can leak the
+  inbox address (`Received`, `Authentication-Results`, `ARC-*`, `X-Google-*`,
+  `DKIM-Signature`, `Return-Path`, `Reply-To`, `Sender`, …), including any future
+  `X-` header, never survive. Cloudflare re-signs DKIM on the outbound send.
 
 ## Development Workflow
 

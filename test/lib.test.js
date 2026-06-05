@@ -37,7 +37,7 @@ describe('parseRelayThreadId', () => {
   });
 
   it('lowercases the id and is case-insensitive on the prefix', () => {
-    expect(parseRelayThreadId('Relay+DEADBEEF@trackmytime.today')).toBe('deadbeef');
+    expect(parseRelayThreadId('Relay+DEADBEEF12345678@trackmytime.today')).toBe('deadbeef12345678');
   });
 
   it('returns null for non-relay or malformed addresses', () => {
@@ -47,6 +47,15 @@ describe('parseRelayThreadId', () => {
     expect(parseRelayThreadId('relay+nothex!@trackmytime.today')).toBeNull();
     expect(parseRelayThreadId('')).toBeNull();
     expect(parseRelayThreadId(undefined)).toBeNull();
+  });
+
+  it('rejects ids that are not exactly 16 hex chars (#36)', () => {
+    expect(parseRelayThreadId('relay+deadbeef@trackmytime.today')).toBeNull(); // 8
+    expect(parseRelayThreadId('relay+0123456789abcde@trackmytime.today')).toBeNull(); // 15
+    expect(parseRelayThreadId('relay+0123456789abcdef0@trackmytime.today')).toBeNull(); // 17
+    expect(parseRelayThreadId('relay+0123456789abcdef0123456789@trackmytime.today')).toBeNull(); // 26
+    // exactly 16 is accepted (covered above)
+    expect(parseRelayThreadId('relay+0123456789abcdef@trackmytime.today')).toBe('0123456789abcdef'); // 16
   });
 });
 
@@ -190,6 +199,33 @@ describe('rewriteHeaders', () => {
     expect(out).toContain('From: a@b.com');
     expect(out).toContain('To: c@d.com');
     expect(out).toContain('Subject: x');
+  });
+
+  it('parses a bare-LF message the same as CRLF (#37)', () => {
+    const lfRaw = [
+      'From: owner@example.com',
+      'Reply-To: owner@example.com',
+      'Subject: Re: hello',
+      '',
+      'the body stays',
+    ].join('\n'); // bare LF, not CRLF
+    const out = rewriteHeaders(lfRaw, 'cla@trackmytime.today', 'partner@corp.com');
+    expect(out).toContain('From: cla@trackmytime.today');
+    expect(out).toContain('To: partner@corp.com');
+    expect(out).toContain('Subject: Re: hello'); // header kept, not lost
+    expect(out).not.toMatch(/^Reply-To:/m);      // sender header still stripped
+    expect(out).toContain('the body stays');     // body not discarded
+  });
+
+  it('strips CR/LF from the injected From/To so headers cannot be smuggled (#27)', () => {
+    const out = rewriteHeaders(
+      'Subject: x\r\n\r\nbody',
+      'cla@trackmytime.today\r\nBcc: victim@corp.com',
+      'partner@corp.com\r\nX-Evil: 1'
+    );
+    expect(out).not.toMatch(/^Bcc:/m);
+    expect(out).not.toMatch(/^X-Evil:/m);
+    expect(out).toContain('From: cla@trackmytime.todayBcc: victim@corp.com'); // collapsed onto one line, inert
   });
 });
 

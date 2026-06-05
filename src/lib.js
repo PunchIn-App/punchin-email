@@ -36,7 +36,9 @@ export function generateId(getRandomValues = (a) => crypto.getRandomValues(a)) {
  */
 export function parseRelayThreadId(address) {
   if (!address) return null;
-  const match = String(address).match(/relay\+([a-f0-9]+)@/i);
+  // Anchor to exactly 16 hex chars — the length generateId emits — so a probe
+  // with an other-length id can't match and trigger a KV lookup (issue #36).
+  const match = String(address).match(/relay\+([a-f0-9]{16})@/i);
   return match ? match[1].toLowerCase() : null;
 }
 
@@ -186,9 +188,15 @@ export function normalizeContactUrl(value) {
  * @param {string} to
  */
 export function rewriteHeaders(rawText, from, to) {
-  const splitIdx = rawText.indexOf('\r\n\r\n');
-  const headerBlock = splitIdx !== -1 ? rawText.slice(0, splitIdx) : rawText;
-  const body = splitIdx !== -1 ? rawText.slice(splitIdx) : '\r\n\r\n';
+  // Normalize line endings to CRLF first so a message using bare LF (or CR)
+  // separators parses the same as a CRLF one. Without this the `\r\n\r\n` split
+  // misses on an LF-only message, every header is dropped, and the body is lost
+  // (issue #37).
+  const text = String(rawText).replace(/\r\n|\r|\n/g, '\r\n');
+
+  const splitIdx = text.indexOf('\r\n\r\n');
+  const headerBlock = splitIdx !== -1 ? text.slice(0, splitIdx) : text;
+  const body = splitIdx !== -1 ? text.slice(splitIdx) : '\r\n\r\n';
 
   // Fold multi-line (continuation) headers into single lines before filtering
   // so a dropped header can't leave an orphaned continuation line behind.
@@ -198,7 +206,10 @@ export function rewriteHeaders(rawText, from, to) {
     .split('\r\n')
     .filter((line) => KEPT_HEADER_RE.test(line));
 
-  const newHeaders = [`From: ${from}`, `To: ${to}`, ...kept].join('\r\n');
+  // Strip CR/LF from the injected From/To values so a crafted alias / sender
+  // address can't smuggle extra headers into the outbound message (issue #27).
+  const safe = (v) => String(v).replace(/[\r\n]/g, '');
+  const newHeaders = [`From: ${safe(from)}`, `To: ${safe(to)}`, ...kept].join('\r\n');
 
   return newHeaders + body;
 }
