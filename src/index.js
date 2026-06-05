@@ -87,23 +87,59 @@ export async function handleRelay(message, env) {
     return;
   }
 
-  const { aliasEmail, originalSender } = JSON.parse(stored);
+  let mapping;
+  try {
+    mapping = JSON.parse(stored);
+  } catch {
+    // A record that won't parse now will never parse on retry — bounce cleanly
+    // with a clear reason instead of throwing into Cloudflare's retry loop on a
+    // poison record (issue #34).
+    message.setReject('Thread record could not be read');
+    return;
+  }
+  const { aliasEmail, originalSender } = mapping;
 
   const rawText = await new Response(message.raw).text();
   const rewritten = rewriteHeaders(rawText, aliasEmail, originalSender);
 
   const outbound = new EmailMessage(aliasEmail, originalSender, rewritten);
   await env.EMAIL_SENDING.send(outbound);
+
+  // Refresh the thread's TTL on each successful relay so an actively used thread
+  // never ages out from under the participants; idle threads still expire 30
+  // days after their last activity (issue #32). Re-put the record verbatim —
+  // only the expiry is being extended. Best-effort: a refresh failure must not
+  // fail the already-sent relay (and trigger a retry that double-sends), so it
+  // is swallowed.
+  try {
+    await env.EMAIL_THREADS.put(threadId, stored, { expirationTtl: THREAD_TTL_SECONDS });
+  } catch {
+    // ignore — the mapping simply keeps its prior expiry
+  }
 }
 
 export default {
   async email(message, env) {
-    const to = (message.to || '').toLowerCase();
+    try {
+      const to = (message.to || '').toLowerCase();
 
-    if (to.startsWith('relay+')) {
-      await handleRelay(message, env);
-    } else {
-      await handleInbound(message, env);
+      if (to.startsWith('relay+')) {
+        await handleRelay(message, env);
+      } else {
+        await handleInbound(message, env);
+      }
+    } catch (err) {
+      // Transient infra failures (KV outage, send quota, network blip) are best
+      // resolved by Cloudflare retrying the message — which a thrown error
+      // surfaces as a temp-failure. Calling setReject() here would convert a
+      // retriable hiccup into a permanent bounce and lose legitimate mail, so we
+      // deliberately re-throw rather than swallow. Genuinely permanent
+      // conditions (unknown alias, corrupt thread record, auto-submitted, bad
+      // relay address) are already rejected inside the handlers with an explicit
+      // setReject and never reach here. We log only the error name — never the
+      // message, addresses, or body — to avoid leaking PII (issue #34).
+      console.error('punchin-email: handler error, re-throwing for retry:', (err && err.name) || 'Error');
+      throw err;
     }
   },
 

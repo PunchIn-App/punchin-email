@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import worker, { handleInbound, handleRelay } from '../src/index.js';
+import { THREAD_TTL_SECONDS } from '../src/lib.js';
 import { makeMessage, makeEnv } from './helpers.js';
 
 describe('handleInbound', () => {
@@ -169,6 +170,60 @@ describe('handleRelay', () => {
     expect(msg.calls.reject).toEqual(['Thread not found or expired (30-day limit)']);
     expect(env.EMAIL_SENDING.sent).toHaveLength(0);
   });
+
+  it('refreshes the thread TTL on a successful relay (#32)', async () => {
+    const env = makeEnv();
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: 'Subject: hi\r\n\r\nbody',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+    const refresh = env.EMAIL_THREADS.puts.find((p) => p.key === '0123456789abcdef');
+    expect(refresh).toBeTruthy();
+    expect(refresh.options.expirationTtl).toBe(THREAD_TTL_SECONDS);
+    // The mapping is re-stored verbatim — only the expiry is extended.
+    expect(JSON.parse(refresh.value).aliasEmail).toBe('cla@trackmytime.today');
+  });
+
+  it('still relays if the TTL refresh itself fails (best-effort) (#32)', async () => {
+    const env = makeEnv();
+    setupThread(env);
+    // Make the post-send refresh put throw; the relay was already sent, so it
+    // must not bounce or double-send. (get still reads from the in-memory store.)
+    env.EMAIL_THREADS.put = async () => {
+      throw new Error('KV write failed');
+    };
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: 'Subject: hi\r\n\r\nbody',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+    expect(msg.calls.reject).toHaveLength(0);
+  });
+
+  it('bounces cleanly when the stored thread record is corrupt (#34)', async () => {
+    const env = makeEnv();
+    env.EMAIL_THREADS.store.set('0123456789abcdef', 'not json{');
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: 'Subject: x\r\n\r\nhi',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(msg.calls.reject).toEqual(['Thread record could not be read']);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
+  });
 });
 
 describe('email() routing', () => {
@@ -215,5 +270,48 @@ describe('email() routing', () => {
     await worker.email(msg, env);
 
     expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+  });
+
+  it('re-throws (for Cloudflare retry) when sending fails, rather than swallowing (#34)', async () => {
+    const env = makeEnv({
+      EMAIL_SENDING: {
+        sent: [],
+        async send() {
+          throw new Error('send quota exceeded');
+        },
+      },
+    });
+    env.EMAIL_THREADS.store.set(
+      '0123456789abcdef',
+      JSON.stringify({ originalSender: 'p@corp.com', aliasEmail: 'cla@trackmytime.today' })
+    );
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: 'Subject: x\r\n\r\nhi',
+    });
+
+    // Propagates so Cloudflare can retry; a transient send failure must not be
+    // turned into a permanent setReject bounce.
+    await expect(worker.email(msg, env)).rejects.toThrow(/quota/);
+    expect(msg.calls.reject).toHaveLength(0);
+  });
+
+  it('re-throws when the inbound KV put fails (#34)', async () => {
+    const env = makeEnv({
+      EMAIL_THREADS: {
+        store: new Map(),
+        puts: [],
+        async get() {
+          return null;
+        },
+        async put() {
+          throw new Error('KV unavailable');
+        },
+      },
+    });
+    const msg = makeMessage({ from: 'p@corp.com', to: 'cla@trackmytime.today' });
+
+    await expect(worker.email(msg, env)).rejects.toThrow(/KV/);
   });
 });

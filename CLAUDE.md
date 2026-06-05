@@ -71,12 +71,35 @@ thread id → store `{originalSender, aliasEmail, timestamp}` in `EMAIL_THREADS`
 
 **Relay** (`handleRelay`): reject if `From != FORWARD_TO` → reject auto-submitted
 mail → parse and look up the thread id → rewrite headers → send via
-`EMAIL_SENDING`.
+`EMAIL_SENDING` → **refresh the thread's KV TTL**.
 
 The `email()` entrypoint routes by recipient: `relay+` prefix → relay handler,
 everything else → inbound handler. Both handlers read the effective config via
 `getSettings(env)` (KV record layered over env defaults), so the forwarding
 address / aliases / contact URL can change at runtime.
+
+**Threading model (deliberately asymmetric).** The owner's replies leave via
+`relay+<id>@RELAY_DOMAIN` → `handleRelay`, gated by `From == FORWARD_TO`. The
+outbound to the original sender is intentionally **not** given a `relay+<id>`
+`Reply-To`: that address is reserved for the authenticated owner, so routing the
+original sender's replies through it would only hit the relay-sender gate and
+bounce. Instead the original sender replies to the bare alias, which re-enters
+`handleInbound` and mints a **fresh** thread id; `In-Reply-To`/`References`
+preserve client-side threading. A new thread id per inbound is therefore expected
+behaviour, not a bug (issue #33).
+
+**Thread TTL.** Each mapping is stored with a 30-day TTL (`THREAD_TTL_SECONDS`). A
+successful relay **refreshes** that TTL (re-puts the record verbatim), so an
+actively used thread never ages out from under the participants while idle ones
+still expire 30 days after their last activity (issue #32). The refresh is
+best-effort — a failed refresh never fails the already-sent relay.
+
+**Error handling.** Permanent, non-retriable conditions (unknown alias, corrupt
+thread record, auto-submitted, malformed relay address) are rejected with
+`setReject` and a clear reason. Transient infra failures (KV/send) are left to
+**throw** out of `email()` so Cloudflare retries the message, rather than being
+turned into a permanent `setReject` bounce that would lose legitimate mail
+(issue #34).
 
 ## Admin UI (`fetch()`)
 
@@ -105,7 +128,12 @@ rounded accent square. Keep it visually consistent with that app when editing.
 - **Alias allowlist** (`ALLOWED_ALIASES`) — prevents open forwarding under a
   catch-all route.
 - **Relay sender verification** (`From == FORWARD_TO`) — prevents alias spoofing
-  / open relay by anyone who learns a thread id.
+  / open relay by anyone who learns a thread id. *Accepted risk (issue #31):*
+  `From` is the unauthenticated SMTP envelope sender, so a caller who learned
+  **both** a live 64-bit thread id **and** the secret `FORWARD_TO` could attempt
+  to forge it. Mitigated by Cloudflare's routing, `FORWARD_TO` being a secret,
+  and random 64-bit thread ids; additionally consulting Cloudflare's
+  SPF/DKIM/DMARC results on the inbound reply is a possible future hardening.
 - **Auto-submitted drop** — prevents mail loops.
 - **Sender-header allowlisting** — the rewrite keeps only a fixed *allowlist* of
   headers a recipient needs to render/thread the reply (`Subject`, `Date`,
