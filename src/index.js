@@ -6,6 +6,8 @@ import {
   isAllowedAlias,
   addressesEqual,
   isAutoSubmitted,
+  relayReplyAuthVerdict,
+  senderDomainOf,
   rewriteHeaders,
 } from './lib.js';
 import { getSettings } from './settings.js';
@@ -65,6 +67,22 @@ export async function handleRelay(message, env) {
   // sender — an open relay / spoofing vector.
   if (!addressesEqual(message.from, settings.forwardTo)) {
     message.setReject('Unauthorized relay sender');
+    return;
+  }
+
+  // Defence-in-depth on the From == FORWARD_TO gate (issue #31): that gate trusts
+  // the unauthenticated header sender, so additionally consult the SPF/DKIM/DMARC
+  // verdict our receiving MX (Cloudflare) stamped on the reply and refuse to
+  // relay one that demonstrably did NOT authenticate as the FORWARD_TO domain.
+  // Conservative / fail-open: we only act on Cloudflare's own strip-protected
+  // authserv-id, so an absent or unrecognised verdict still relays and a header
+  // format we don't recognise never bounces legitimate mail. Log only the
+  // verdict + authserv-id (never addresses/body) so the exact Cloudflare header
+  // can be confirmed from `wrangler tail` (issue #34).
+  const auth = relayReplyAuthVerdict(message.headers, senderDomainOf(settings.forwardTo));
+  console.log('punchin-email: relay auth verdict:', auth.verdict, auth.authservId || '(none)');
+  if (auth.verdict === 'fail') {
+    message.setReject('Relay reply failed sender authentication');
     return;
   }
 

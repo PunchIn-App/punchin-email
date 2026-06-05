@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.1] — 2026-06-04
+
+A security-hardening patch. No change to normal mail flow.
+
+### Security
+
+- **Relay sender authentication** — the reply relay now adds a defence-in-depth
+  check on top of the existing `From == FORWARD_TO` gate. That gate trusts the
+  unauthenticated header sender; the worker now also consults the SPF/DKIM/DMARC
+  verdict that Cloudflare stamps on the inbound reply
+  (`ARC-Authentication-Results`, authserv-id `mx.cloudflare.net`) and refuses to
+  relay a reply that demonstrably did **not** authenticate as the `FORWARD_TO`
+  domain (`dmarc=pass` aligned to it, or an aligned `dkim=pass`). The check is
+  conservative and **fail-open**: it only acts on Cloudflare's own
+  strip-protected authserv-id, so an absent or unrecognised verdict still relays
+  and legitimate mail is never bounced on a header we don't recognise. The
+  per-relay verdict (no addresses or body) is logged so the exact header can be
+  confirmed in production. Narrows the accepted risk noted at #31. (#31)
+
+---
+
 ## [1.3.0] — 2026-06-04
 
 A security- and robustness-hardening release closing the 18 findings of the

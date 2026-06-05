@@ -6,12 +6,20 @@ import {
   isAllowedAlias,
   addressesEqual,
   isAutoSubmitted,
+  relayReplyAuthVerdict,
+  senderDomainOf,
   rewriteHeaders,
   THREAD_TTL_SECONDS,
   isValidEmailAddress,
   normalizeAliasList,
   normalizeContactUrl,
 } from '../src/lib.js';
+
+// Build a headers double like makeMessage's: case-insensitive .get().
+const hdrs = (obj) => {
+  const m = new Map(Object.entries(obj).map(([k, v]) => [k.toLowerCase(), v]));
+  return { get: (k) => (m.has(k.toLowerCase()) ? m.get(k.toLowerCase()) : null) };
+};
 
 describe('generateId', () => {
   it('produces a 16-char lowercase hex string', () => {
@@ -295,5 +303,69 @@ describe('normalizeContactUrl', () => {
     expect(() => normalizeContactUrl('not a url')).toThrow();
     expect(() => normalizeContactUrl('ftp://x.y')).toThrow(/http/);
     expect(() => normalizeContactUrl('javascript:alert(1)')).toThrow();
+  });
+});
+
+describe('senderDomainOf', () => {
+  it('extracts and lowercases the domain', () => {
+    expect(senderDomainOf('Me@Gmail.com')).toBe('gmail.com');
+    expect(senderDomainOf('owner@example.co.uk')).toBe('example.co.uk');
+  });
+  it('tolerates a display-name wrapper and returns "" for junk', () => {
+    expect(senderDomainOf('Owner <owner@example.com>')).toBe('example.com');
+    expect(senderDomainOf('no-at-sign')).toBe('');
+    expect(senderDomainOf('')).toBe('');
+  });
+});
+
+describe('relayReplyAuthVerdict (#31)', () => {
+  // A realistic Cloudflare ARC-Authentication-Results stamp.
+  const cfArc = (results) => ({ 'ARC-Authentication-Results': `i=1; mx.cloudflare.net; ${results}` });
+
+  it('passes a DMARC-aligned reply from the sender domain', () => {
+    const h = hdrs(cfArc('dkim=pass header.d=gmail.com header.s=x header.b=y; dmarc=pass header.from=gmail.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@gmail.com'));
+    expect(relayReplyAuthVerdict(h, 'gmail.com')).toEqual({ verdict: 'pass', authservId: 'mx.cloudflare.net' });
+  });
+
+  it('passes on an aligned DKIM signature even without a dmarc=pass token', () => {
+    const h = hdrs(cfArc('dkim=pass header.d=gmail.com header.s=x; spf=pass smtp.mailfrom=owner@gmail.com'));
+    expect(relayReplyAuthVerdict(h, 'gmail.com').verdict).toBe('pass');
+  });
+
+  it('passes a DKIM signature from a subdomain of the sender domain', () => {
+    const h = hdrs(cfArc('dkim=pass header.d=mail.example.com; spf=pass'));
+    expect(relayReplyAuthVerdict(h, 'example.com').verdict).toBe('pass');
+  });
+
+  it('fails a reply that did not authenticate as the sender domain (spoof)', () => {
+    // From claims gmail.com but only attacker.com authenticated → dmarc fails.
+    const h = hdrs(cfArc('dkim=pass header.d=attacker.com header.s=x; dmarc=fail header.from=gmail.com; spf=pass smtp.mailfrom=bounce@attacker.com'));
+    expect(relayReplyAuthVerdict(h, 'gmail.com')).toEqual({ verdict: 'fail', authservId: 'mx.cloudflare.net' });
+  });
+
+  it('returns unknown (fail-open) when no auth-results header is present', () => {
+    expect(relayReplyAuthVerdict(hdrs({}), 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
+  });
+
+  it('ignores an auth-results set from an untrusted authserv-id (forgery-resistant)', () => {
+    // A sender-forged header under some other authserv-id Cloudflare does not
+    // strip must not be trusted, even though it claims a pass.
+    const h = hdrs({ 'Authentication-Results': 'evil.example; dmarc=pass header.from=gmail.com' });
+    expect(relayReplyAuthVerdict(h, 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
+  });
+
+  it('reads a plain Authentication-Results stamped by the trusted MX', () => {
+    const h = hdrs({ 'Authentication-Results': 'mx.cloudflare.net; dmarc=pass header.from=gmail.com; spf=pass' });
+    expect(relayReplyAuthVerdict(h, 'gmail.com').verdict).toBe('pass');
+  });
+
+  it('does not let a pass for a different From domain count', () => {
+    const h = hdrs(cfArc('dmarc=pass header.from=elsewhere.com; spf=pass'));
+    expect(relayReplyAuthVerdict(h, 'gmail.com').verdict).toBe('fail');
+  });
+
+  it('returns unknown when the sender domain is empty', () => {
+    const h = hdrs(cfArc('dmarc=pass header.from=gmail.com'));
+    expect(relayReplyAuthVerdict(h, '').verdict).toBe('unknown');
   });
 });

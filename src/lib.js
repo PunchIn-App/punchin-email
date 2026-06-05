@@ -118,6 +118,109 @@ export function isAutoSubmitted(headers) {
   return false;
 }
 
+// --- Relay sender authentication (defence-in-depth over From == FORWARD_TO) --
+
+// authserv-id(s) we trust in an Authentication-Results / ARC-Authentication-
+// Results header: our receiving MX (Cloudflare Email Routing) stamps its verdict
+// under `mx.cloudflare.net`, and per RFC 8601 §5 a boundary MTA strips any
+// inbound copy bearing its *own* authserv-id, so a sender can't forge this one.
+// Only ids Cloudflare actually strip-protects belong here — never the customer
+// (relay) domain, which a sender *could* spoof.
+const TRUSTED_AUTHSERV_IDS = ['mx.cloudflare.net'];
+
+/**
+ * Domain part of an email address, lowercased: `Me@Gmail.com` -> `gmail.com`.
+ * Tolerates a `Display <addr>` wrapper by trimming at the first `>`/space.
+ * @param {string} address
+ * @returns {string}
+ */
+export function senderDomainOf(address) {
+  const at = String(address || '').lastIndexOf('@');
+  if (at === -1) return '';
+  let domain = String(address).slice(at + 1).trim().toLowerCase();
+  // Cut at the first '>' or whitespace (a `Display <addr>` wrapper). Search for a
+  // single character — no `.*` quantifier — so this can't be a ReDoS vector on a
+  // value with many leading whitespace chars (CodeQL js/polynomial-redos).
+  const cut = domain.search(/[>\s]/);
+  return cut === -1 ? domain : domain.slice(0, cut);
+}
+
+// Split one Authentication-Results / ARC-Authentication-Results value into its
+// authserv-id and the remaining result text. ARC values lead with an `i=<n>;`
+// instance tag, which is stripped first.
+function parseAuthResultsValue(value) {
+  let s = String(value || '').trim();
+  if (!s) return null;
+  const arc = /^i=\d+\s*;\s*/i.exec(s);
+  if (arc) s = s.slice(arc[0].length);
+  const semi = s.indexOf(';');
+  const idPart = (semi === -1 ? s : s.slice(0, semi)).trim();
+  const authservId = idPart.split(/\s+/)[0].toLowerCase(); // drop an optional version number
+  const body = semi === -1 ? '' : s.slice(semi + 1);
+  return { authservId, body };
+}
+
+// Does a trusted auth-results body show an SPF/DKIM/DMARC pass that aligns with
+// `dom` (the FORWARD_TO domain)? Parsed with linear string splits — never a
+// dynamic regex over the attacker-influenced header — so it can't be a ReDoS
+// vector. Each `;`-separated resinfo leads with `method=result`; we accept a
+// `dmarc=pass` whose `header.from` is the sender domain, or a `dkim=pass` whose
+// `header.d` is the sender domain or a subdomain of it.
+function bodyShowsAlignedPass(body, dom) {
+  for (const segment of String(body).split(';')) {
+    const tokens = segment.trim().split(/\s+/);
+    const [method, result] = (tokens[0] || '').toLowerCase().split('=');
+    if (result !== 'pass') continue;
+    if (method === 'dmarc') {
+      if (tokens.some((t) => t.toLowerCase() === `header.from=${dom}`)) return true;
+    } else if (method === 'dkim') {
+      const aligned = tokens.some((t) => {
+        const tl = t.toLowerCase();
+        if (!tl.startsWith('header.d=')) return false;
+        const d = tl.slice('header.d='.length);
+        return d === dom || d.endsWith(`.${dom}`);
+      });
+      if (aligned) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Decide whether a relay reply genuinely authenticated as `senderDomain` (the
+ * FORWARD_TO domain), using the SPF/DKIM/DMARC verdict our receiving MX stamped
+ * on it (issue #31). Defence-in-depth over the `From == FORWARD_TO` gate, which
+ * trusts the unauthenticated envelope sender.
+ *
+ * Conservative and **fail-open**: we only act on a result set whose authserv-id
+ * is one Cloudflare strip-protects (`TRUSTED_AUTHSERV_IDS`). A reply is `pass`
+ * when that set shows `dmarc=pass` aligned to the sender domain (`header.from`)
+ * or a `dkim=pass` whose `header.d` aligns; `fail` when the trusted set shows
+ * neither; and `unknown` when no trusted set is present — in which case the
+ * caller still relays, so legitimate mail is never bounced on a header we
+ * didn't recognise.
+ *
+ * @param {{get:(k:string)=>string|null}} headers
+ * @param {string} senderDomain the FORWARD_TO domain the reply must authenticate as
+ * @param {string[]} [trusted] override the trusted authserv-id list (tests)
+ * @returns {{ verdict: 'pass'|'fail'|'unknown', authservId: string|null }}
+ */
+export function relayReplyAuthVerdict(headers, senderDomain, trusted = TRUSTED_AUTHSERV_IDS) {
+  const get = (k) => (headers && typeof headers.get === 'function' ? headers.get(k) : null);
+  const dom = String(senderDomain || '').toLowerCase();
+  if (!dom) return { verdict: 'unknown', authservId: null };
+
+  const candidates = [get('Authentication-Results'), get('ARC-Authentication-Results')].filter(Boolean);
+  for (const value of candidates) {
+    const parsed = parseAuthResultsValue(value);
+    if (!parsed || !trusted.includes(parsed.authservId)) continue;
+
+    if (bodyShowsAlignedPass(parsed.body, dom)) return { verdict: 'pass', authservId: parsed.authservId };
+    return { verdict: 'fail', authservId: parsed.authservId };
+  }
+  return { verdict: 'unknown', authservId: null };
+}
+
 // --- Validation helpers for the admin settings API -------------------------
 
 /**

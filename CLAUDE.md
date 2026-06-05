@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.3.0
+**Version:** 1.3.1
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -57,6 +57,10 @@ This repo is tracked on the shared **[PunchIn project board](https://github.com/
 - `isAllowedAlias(address, allowed)` — allowlist check against base local-part
 - `addressesEqual(a, b)` — case-insensitive address compare (unwraps display names)
 - `isAutoSubmitted(headers)` — detects bounces / vacation responders
+- `senderDomainOf(address)` — domain part of an address, lowercased
+- `relayReplyAuthVerdict(headers, senderDomain)` — `pass`/`fail`/`unknown` from
+  Cloudflare's SPF/DKIM/DMARC stamp on the reply, trusting only the
+  `mx.cloudflare.net` authserv-id; fail-open (issue #31)
 - `isValidEmailAddress(value)` — loose single-address check for admin input
 - `normalizeAliasList(input)` — clean/dedupe/sort alias local-parts; throws on an
   invalid or reserved (`relay`) token
@@ -69,9 +73,11 @@ This repo is tracked on the shared **[PunchIn project board](https://github.com/
 thread id → store `{originalSender, aliasEmail, timestamp}` in `EMAIL_THREADS`
 (30-day TTL) → `message.forward(FORWARD_TO, { Reply-To: relay+<id>@RELAY_DOMAIN })`.
 
-**Relay** (`handleRelay`): reject if `From != FORWARD_TO` → reject auto-submitted
-mail → parse and look up the thread id → rewrite headers → send via
-`EMAIL_SENDING` → **refresh the thread's KV TTL**.
+**Relay** (`handleRelay`): reject if `From != FORWARD_TO` → reject if the reply's
+SPF/DKIM/DMARC verdict shows it didn't authenticate as the `FORWARD_TO` domain
+(`relayReplyAuthVerdict`, fail-open) → reject auto-submitted mail → parse and look
+up the thread id → rewrite headers → send via `EMAIL_SENDING` → **refresh the
+thread's KV TTL**.
 
 The `email()` entrypoint routes by recipient: `relay+` prefix → relay handler,
 everything else → inbound handler. Both handlers read the effective config via
@@ -127,13 +133,20 @@ rounded accent square. Keep it visually consistent with that app when editing.
 
 - **Alias allowlist** (`ALLOWED_ALIASES`) — prevents open forwarding under a
   catch-all route.
-- **Relay sender verification** (`From == FORWARD_TO`) — prevents alias spoofing
-  / open relay by anyone who learns a thread id. *Accepted risk (issue #31):*
-  `From` is the unauthenticated SMTP envelope sender, so a caller who learned
-  **both** a live 64-bit thread id **and** the secret `FORWARD_TO` could attempt
-  to forge it. Mitigated by Cloudflare's routing, `FORWARD_TO` being a secret,
-  and random 64-bit thread ids; additionally consulting Cloudflare's
-  SPF/DKIM/DMARC results on the inbound reply is a possible future hardening.
+- **Relay sender verification** (`From == FORWARD_TO`, plus an SPF/DKIM/DMARC
+  alignment check) — prevents alias spoofing / open relay by anyone who learns a
+  thread id. The `From` gate trusts the unauthenticated header sender, so the
+  relay **also** consults the verdict Cloudflare stamps on the inbound reply
+  (`relayReplyAuthVerdict`): a reply that did not authenticate as the
+  `FORWARD_TO` domain (`dmarc=pass` aligned to it, or an aligned `dkim=pass`) is
+  rejected (issue #31). **Fail-open** — it acts only on Cloudflare's own
+  strip-protected authserv-id (`mx.cloudflare.net`, removed if a sender forges it
+  per RFC 8601 §5), so an absent / unrecognised verdict still relays and
+  legitimate mail is never bounced. *Residual risk:* the check reads a header
+  rather than verifying the ARC seal cryptographically, so it is defence-in-depth
+  (further mitigated by `FORWARD_TO` being secret and random 64-bit thread ids),
+  and it only enforces once Cloudflare's authserv-id matches the trusted value —
+  the per-relay verdict is logged (no PII) so that can be confirmed in production.
 - **Auto-submitted drop** — prevents mail loops.
 - **Sender-header allowlisting** — the rewrite keeps only a fixed *allowlist* of
   headers a recipient needs to render/thread the reply (`Subject`, `Date`,

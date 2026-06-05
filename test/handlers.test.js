@@ -153,6 +153,64 @@ describe('handleRelay', () => {
     expect(env.EMAIL_SENDING.sent).toHaveLength(0);
   });
 
+  it('relays a reply that authenticated as the FORWARD_TO domain (#31)', async () => {
+    const env = makeEnv(); // FORWARD_TO = owner@example.com
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      headers: {
+        'ARC-Authentication-Results':
+          'i=1; mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1; dmarc=pass header.from=example.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@example.com',
+      },
+      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+    expect(msg.calls.reject).toHaveLength(0);
+  });
+
+  it('rejects a reply that did not authenticate as the FORWARD_TO domain (#31)', async () => {
+    // From is forged to owner@example.com, but Cloudflare's verdict shows only
+    // attacker.com authenticated — dmarc=fail for the claimed From domain.
+    const env = makeEnv();
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      headers: {
+        'ARC-Authentication-Results':
+          'i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com header.s=s1; dmarc=fail header.from=example.com; spf=pass smtp.mailfrom=bounce@attacker.com',
+      },
+      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(msg.calls.reject).toEqual(['Relay reply failed sender authentication']);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
+  });
+
+  it('still relays when no auth verdict is present (fail-open, #31)', async () => {
+    // An unrecognised / absent Authentication-Results must never bounce a
+    // legitimate owner reply — the guard only acts on a trusted "fail".
+    const env = makeEnv();
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      headers: { 'ARC-Authentication-Results': 'i=1; some-other-mx.example; dmarc=pass header.from=example.com' },
+      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+    });
+
+    await handleRelay(msg, env);
+
+    expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+    expect(msg.calls.reject).toHaveLength(0);
+  });
+
   it('rejects a malformed relay address', async () => {
     const env = makeEnv();
     const msg = makeMessage({
