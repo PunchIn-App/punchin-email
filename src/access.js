@@ -12,6 +12,12 @@
 const _jwksCache = new Map();
 const JWKS_TTL_MS = 60 * 60 * 1000; // re-fetch keys hourly
 
+// Symmetric clock-skew leeway applied to both the `exp` and `nbf` checks. A
+// token that expired (or became valid) within this window is still accepted, so
+// our clock running slightly ahead of / behind Cloudflare's issuer doesn't lock
+// out a legitimate admin. RFC 7519 §4.1.4/§4.1.5 explicitly permits this leeway.
+const CLOCK_SKEW_SEC = 60;
+
 function b64urlToBytes(s) {
   let t = String(s).replace(/-/g, '+').replace(/_/g, '/');
   const pad = t.length % 4;
@@ -42,8 +48,12 @@ export function validateAccessClaims(payload, header, { aud, teamDomain, now = D
   if (payload.iss !== `https://${teamDomain}`) return { ok: false, reason: 'issuer mismatch' };
 
   const nowSec = Math.floor(now / 1000);
-  if (typeof payload.exp !== 'number' || payload.exp <= nowSec) return { ok: false, reason: 'token expired' };
-  if (typeof payload.nbf === 'number' && payload.nbf > nowSec + 60) return { ok: false, reason: 'token not yet valid' };
+  if (typeof payload.exp !== 'number' || payload.exp <= nowSec - CLOCK_SKEW_SEC) {
+    return { ok: false, reason: 'token expired' };
+  }
+  if (typeof payload.nbf === 'number' && payload.nbf > nowSec + CLOCK_SKEW_SEC) {
+    return { ok: false, reason: 'token not yet valid' };
+  }
 
   return { ok: true };
 }
