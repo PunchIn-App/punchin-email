@@ -3,6 +3,12 @@
 # yet have one. "No milestone" cleanly means "merged since the last release",
 # because the previous release already milestoned its PRs.
 #
+# The sweep is additionally BOUNDED to PRs merged after the previous release's
+# tag commit, so a one-time un-milestoned backlog (e.g. releases published before
+# this workflow existed) can't all land in whichever release fires it first. The
+# bound uses the previous tag's *commit* date, not the release publish time,
+# which can be backfilled/batched and isn't a reliable boundary.
+#
 # Runs under ADD_TO_PROJECT_PAT (the default GITHUB_TOKEN is kept read-only). The
 # PAT must grant Issues: read/write (create milestone + assign) and Contents:
 # read (search) on the repo. The board's Milestone field mirrors automatically.
@@ -39,10 +45,32 @@ jobs:
             }
             if (!ms) { core.setFailed('Could not create or find the milestone'); return; }
 
-            // Assign every merged PR with no milestone (= merged since last release).
-            const prs = await github.paginate(github.rest.search.issuesAndPullRequests, {
-              q: `repo:${owner}/${repo} is:pr is:merged no:milestone`, per_page: 100,
-            });
+            // Find the previous release (most recent published before this one) and
+            // resolve its tag to the *commit* date — the real "everything before here
+            // shipped earlier" boundary. Publish times can be batched/backfilled.
+            const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
+            const thisPub = new Date(rel.published_at || Date.now());
+            const prev = releases
+              .filter(r => r.id !== rel.id && r.published_at && new Date(r.published_at) < thisPub)
+              .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))[0];
+            let since = null;
+            if (prev) {
+              try {
+                const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${prev.tag_name}` });
+                let sha = ref.data.object.sha;
+                if (ref.data.object.type === 'tag') {
+                  sha = (await github.rest.git.getTag({ owner, repo, tag_sha: sha })).data.object.sha;
+                }
+                since = (await github.rest.git.getCommit({ owner, repo, commit_sha: sha })).data.committer.date;
+              } catch (e) { core.warning(`prev-tag date (${prev.tag_name}): ${e.message}`); }
+            }
+
+            // Assign every merged PR with no milestone, BOUNDED to "since the previous
+            // release" so an un-milestoned backlog can't all land in this milestone.
+            const q = since
+              ? `repo:${owner}/${repo} is:pr is:merged no:milestone merged:>${since}`
+              : `repo:${owner}/${repo} is:pr is:merged no:milestone`;
+            const prs = await github.paginate(github.rest.search.issuesAndPullRequests, { q, per_page: 100 });
             let n = 0;
             for (const pr of prs) {
               await github.rest.issues.update({ owner, repo, issue_number: pr.number, milestone: ms.number })
