@@ -1,4 +1,4 @@
-# Auto-assign new issues/PRs to the "PunchIn" project board (user project #3)
+# Auto-assign new issues/PRs to the "PunchIn" project board (org project #1)
 # and populate the fields GitHub's built-in project workflows DON'T:
 #   Labels · Priority · Size · Start/Target/Completion dates.
 # On close it also clears any assignees (finished work shouldn't stay assigned).
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/github-script@v7
         env:
           PROJECT_OWNER: PunchIn-App
-          PROJECT_NUMBER: "3"
+          PROJECT_NUMBER: "1"
         with:
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
@@ -55,11 +55,11 @@ jobs:
             }
 
             // Resolve the project + its field metadata.
-            const meta = await github.graphql(`query($o:String!,$n:Int!){ user(login:$o){ projectV2(number:$n){ id
+            const meta = await github.graphql(`query($o:String!,$n:Int!){ organization(login:$o){ projectV2(number:$n){ id
               fields(first:50){ nodes{
                 ... on ProjectV2FieldCommon{ id name }
                 ... on ProjectV2SingleSelectField{ id name options{ id name } } } } } } }`, { o: owner, n: number });
-            const proj = meta.user.projectV2;
+            const proj = meta.organization.projectV2;
             const F = {}, OPT = {};
             for (const f of proj.fields.nodes) { if (!f || !f.name) continue; F[f.name] = f.id; if (f.options) { OPT[f.name] = {}; for (const o of f.options) OPT[f.name][o.name] = o.id; } }
 
