@@ -1,6 +1,6 @@
-# Auto-assign new issues/PRs to the "PunchIn" project board (user project #3)
+# Auto-assign new issues/PRs to the "PunchIn" project board (org project #1)
 # and populate the fields GitHub's built-in project workflows DON'T:
-#   Labels · Priority · Size · Start/Target/Completion dates.
+#   Labels · Priority · Size · Start/Target dates (completion = built-in "Closed" field).
 # On close it also clears any assignees (finished work shouldn't stay assigned).
 # Status is intentionally left to the project's built-in workflows (Item added /
 # Item closed / Pull request merged) so this never fights them or trips the
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/github-script@v7
         env:
           PROJECT_OWNER: PunchIn-App
-          PROJECT_NUMBER: "3"
+          PROJECT_NUMBER: "1"
         with:
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
@@ -55,11 +55,11 @@ jobs:
             }
 
             // Resolve the project + its field metadata.
-            const meta = await github.graphql(`query($o:String!,$n:Int!){ user(login:$o){ projectV2(number:$n){ id
+            const meta = await github.graphql(`query($o:String!,$n:Int!){ organization(login:$o){ projectV2(number:$n){ id
               fields(first:50){ nodes{
                 ... on ProjectV2FieldCommon{ id name }
                 ... on ProjectV2SingleSelectField{ id name options{ id name } } } } } } }`, { o: owner, n: number });
-            const proj = meta.user.projectV2;
+            const proj = meta.organization.projectV2;
             const F = {}, OPT = {};
             for (const f of proj.fields.nodes) { if (!f || !f.name) continue; F[f.name] = f.id; if (f.options) { OPT[f.name] = {}; for (const o of f.options) OPT[f.name][o.name] = o.id; } }
 
@@ -67,14 +67,23 @@ jobs:
             const add = await github.graphql(`mutation($p:ID!,$c:ID!){ addProjectV2ItemById(input:{projectId:$p, contentId:$c}){ item{ id } } }`, { p: proj.id, c: c.node_id });
             const item = add.addProjectV2ItemById.item.id;
 
-            const setDate = (n, d) => github.graphql(`mutation($p:ID!,$i:ID!,$f:ID!,$d:Date!){ updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{date:$d}}){ projectV2Item{ id } } }`, { p: proj.id, i: item, f: F[n], d });
-            const setOpt = (n, o) => github.graphql(`mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){ updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$o}}){ projectV2Item{ id } } }`, { p: proj.id, i: item, f: F[n], o: OPT[n][o] });
+            // Field writes are best-effort: a field/option the board doesn't have
+            // is logged and skipped, never fatal (matches the label/assignee calls).
+            const setDate = (n, d) => {
+              if (!F[n]) { core.warning(`skip date "${n}": field not on board`); return; }
+              return github.graphql(`mutation($p:ID!,$i:ID!,$f:ID!,$d:Date!){ updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{date:$d}}){ projectV2Item{ id } } }`, { p: proj.id, i: item, f: F[n], d }).catch(e => core.warning(`date "${n}": ${e.message}`));
+            };
+            const setOpt = (n, o) => {
+              const oid = OPT[n] && OPT[n][o];
+              if (!oid) { core.warning(`skip "${n}"="${o}": field/option not on board`); return; }
+              return github.graphql(`mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){ updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$o}}){ projectV2Item{ id } } }`, { p: proj.id, i: item, f: F[n], o: oid }).catch(e => core.warning(`opt "${n}"="${o}": ${e.message}`));
+            };
             const sizeOf = n => n < 10 ? 'XS' : n < 50 ? 'S' : n < 250 ? 'M' : n < 1000 ? 'L' : 'XL';
             const today = new Date().toISOString().slice(0, 10);
 
             if (action === 'opened' || action === 'reopened') {
               const labels = (c.labels || []).map(l => l.name || l).concat(label ? [label] : []);
-              await setOpt('Priority', labels.some(l => l === 'bug' || l === 'enhancement') ? 'P1' : 'P2');
+              await setOpt('Priority', labels.some(l => l === 'bug' || l === 'enhancement') ? 'High' : 'Medium');
               await setDate('Start date', today);
               const tg = new Date(); tg.setDate(tg.getDate() + 3);
               await setDate('Target date', tg.toISOString().slice(0, 10));
@@ -82,7 +91,8 @@ jobs:
             } else if (action === 'synchronize' && isPR) {
               await setOpt('Size', sizeOf((c.additions || 0) + (c.deletions || 0)));
             } else if (action === 'closed') {
-              await setDate('Completion Date', today);
+              // Completion date is tracked by the board's built-in (auto-populated)
+              // "Closed" field — no custom Completion Date write needed here.
               // Clear assignees on close — finished work shouldn't stay assigned.
               const assignees = (c.assignees || []).map(a => a.login);
               if (assignees.length) {
