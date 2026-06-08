@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.6.0] — 2026-06-08
+
+Adds a new role alias. A new alias category supported by the worker, so `MINOR`.
+
+### Added
+
+- **`privacy@trackmytime.today` role alias.** Inbound mail to `privacy@` (plus any
+  `+subaddress`) now forwards to the inbox and supports the two-way reply relay,
+  exactly like the existing aliases. Added to the `ALLOWED_ALIASES` default; the
+  live runtime allowlist (KV `settings:v1`) was updated to match. No new Email
+  Routing rule is needed — the catch-all already delivers every address to the
+  worker, which gates forwarding by the allowlist.
+
 ## [1.5.0] — 2026-06-08
 
 A privacy fix to the inbound path. Observable in delivered mail (the `From` of

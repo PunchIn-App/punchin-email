@@ -1,0 +1,22 @@
+{
+  "summary": "Operator inbox (FORWARD_TO) disclosed to correspondents on reply — Cloudflare forward() drops the relay Reply-To",
+  "description": "### Impact\n\n`punchin-email` is a two-way email alias relay whose core guarantee is that the\noperator's personal inbox address is never exposed to correspondents. In\nversions prior to **1.5.0**, the **inbound** path broke that guarantee.\n\n`handleInbound` delivered mail addressed to an alias (e.g. `abuse@`, `contact@`,\n`cve@`) by calling:\n\n```js\nmessage.forward(FORWARD_TO, new Headers({ 'Reply-To': `relay+<id>@RELAY_DOMAIN` }));\n```\n\nCloudflare's `message.forward()` **silently drops** an added `Reply-To` header.\nThe forwarded message therefore retained the original sender's own `From` and\ncarried no working relay `Reply-To`. When the operator simply hit **Reply**, the\nreply went **directly to the original sender, from the operator's real\n`FORWARD_TO` inbox address** — disclosing the operator's personal email to any\ncorrespondent who received a reply.\n\nIn short: anyone who emailed a relayed alias and received a reply could learn the\noperator's private inbox address — the exact thing the relay exists to hide.\n\n### Severity\n\nLow. The disclosure is limited to the operator's *own* email address (no\nthird-party data, no code execution, no authentication bypass). It is rated as a\nsecurity issue because it defeats the product's primary privacy guarantee.\n\n### Patches\n\nFixed in **1.5.0**. The inbound path now **sends** the message via the Email\nSending binding (the same mechanism the outbound relay already uses) instead of\n`forward()`-ing it, rewritten so that **both** the `From` (the alias the sender\nwrote to) and the `Reply-To` (`relay+<id>@RELAY_DOMAIN`) are relay-controlled.\nThe operator's reply therefore always re-enters the relay handler and is\nre-masked out from the alias, so the personal address is exposed in neither\ndirection. Even a mail client that ignores `Reply-To` and replies to the `From`\nonly re-enters the relay, never the original sender.\n\n### Workarounds\n\nNone at the configuration level — upgrading to 1.5.0 (or applying the equivalent\n`forward()` → Email-Sending rewrite in `handleInbound`) is required. Operators on\naffected versions should assume their `FORWARD_TO` address may have been\ndisclosed to anyone they replied to through the relay.\n\n### References\n\n- Fix: PunchIn-App/punchin-email#66\n",
+  "severity": "low",
+  "cwe_ids": [
+    "CWE-201",
+    "CWE-200"
+  ],
+  "vulnerabilities": [
+    {
+      "package": {
+        "ecosystem": "other",
+        "name": "punchin-email"
+      },
+      "vulnerable_version_range": "< 1.5.0",
+      "patched_versions": "1.5.0",
+      "vulnerable_functions": [
+        "handleInbound"
+      ]
+    }
+  ]
+}
