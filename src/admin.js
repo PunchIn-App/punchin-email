@@ -104,51 +104,53 @@ function renderAdminPage() {
 <title>PunchIn Email — Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Display:wght@600;700;800&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Display:wght@700;800&family=Noto+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* Design tokens mirror the main PunchIn app (src/index.css). */
+  /* Design tokens from the PunchIn design system
+     (punchin-design-system/project/colors_and_type.css — dark theme). */
   :root {
     color-scheme: dark;
-    --accent-rgb: 31 111 235;
-    --accent: rgb(31 111 235);
+    --accent-rgb: 45 91 245;
+    --accent: rgb(45 91 245);            /* PunchIn Blue */
     --bg-primary:#0F1117; --bg-secondary:#161923; --bg-tertiary:#1E2232;
     --border-color:#2A2F45;
-    --text-primary:#FFFFFF; --text-secondary:#E2E8F0; --text-muted:#6B7280; --text-disabled:#374151;
-    --ok:#34D399; --err:#F87171;
+    --text-primary:#FFFFFF; --text-secondary:#C7D0E0; --text-muted:#8A93A6; --text-disabled:#5E6781;
+    --ok:#34D399; --err:#FB6B6B;
+    --shadow-accent:0 6px 18px color-mix(in srgb, var(--accent) 38%, transparent);
   }
   * { box-sizing: border-box; }
   body {
     margin:0; background:var(--bg-primary); color:var(--text-secondary);
-    font:15px/1.6 "Noto Sans", system-ui, -apple-system, sans-serif;
+    font:15px/1.6 "Noto Sans", sans-serif;
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   }
   .wrap { max-width:640px; margin:0 auto; padding:40px 20px; }
   .head { display:flex; align-items:center; gap:12px; margin:0 0 4px; }
   .mark { width:32px; height:32px; border-radius:8px; background:var(--accent); flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
-  h1 { font-family:"Noto Sans Display","Noto Sans",sans-serif; font-weight:800; font-size:22px; color:var(--text-primary); margin:0; }
+  h1 { font-family:"Noto Sans Display","Noto Sans",sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.02em; color:var(--text-primary); margin:0; }
   .sub { color:var(--text-muted); margin:0 0 28px; font-size:13px; }
-  code { font-family:"Noto Sans Mono", ui-monospace, monospace; font-size:.92em; color:var(--text-secondary); }
+  code { font-family:"Noto Sans Mono", monospace; font-size:.92em; color:var(--text-secondary); }
   .card { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,.3); }
   label { display:block; font-weight:600; color:var(--text-primary); margin:20px 0 6px; }
   label:first-of-type { margin-top:0; }
   .hint { color:var(--text-muted); font-weight:400; font-size:12px; margin-top:2px; }
   input[type=text] {
-    width:100%; margin-top:8px; padding:10px 12px; background:var(--bg-primary); color:var(--text-primary);
-    border:1px solid var(--border-color); border-radius:10px; font:inherit; transition:border-color .15s, box-shadow .15s;
+    width:100%; margin-top:8px; padding:11px 14px; background:var(--bg-primary); color:var(--text-primary);
+    border:1px solid var(--border-color); border-radius:11px; font:inherit; transition:border-color .15s, box-shadow .15s;
   }
   input::placeholder { color:var(--text-disabled); }
   input:focus { outline:none; border-color:rgb(var(--accent-rgb) / .6); box-shadow:0 0 0 2px rgb(var(--accent-rgb) / .5); }
-  .badge { display:inline-block; font-family:"Noto Sans",sans-serif; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+  .badge { display:inline-block; font-family:"Noto Sans Mono",monospace; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
   .badge.kv { background:rgb(var(--accent-rgb) / .15); color:var(--accent); }
   .badge.env { background:rgba(107,114,128,.18); color:var(--text-muted); }
   .row { display:flex; align-items:center; gap:14px; margin-top:28px; }
   button {
-    background:var(--accent); color:#0F1117; border:0; border-radius:12px; padding:11px 20px;
-    font:inherit; font-weight:700; cursor:pointer; transition:filter .15s;
+    background:var(--accent); color:#fff; border:0; border-radius:13px; padding:13px 20px;
+    font:inherit; font-weight:700; cursor:pointer; box-shadow:var(--shadow-accent); transition:filter .15s, box-shadow .15s;
   }
-  button:hover { filter:brightness(1.1); }
-  button:active { filter:brightness(.9); }
-  button:disabled { opacity:.4; cursor:default; filter:none; }
+  button:hover { filter:brightness(1.08); }
+  button:active { filter:brightness(.92); }
+  button:disabled { opacity:.4; cursor:default; filter:none; box-shadow:none; }
   .status { font-size:13px; font-weight:500; }
   .status.ok { color:var(--ok); }
   .status.err { color:var(--err); }
@@ -171,9 +173,9 @@ function renderAdminPage() {
 <div class="wrap">
   <div class="head">
     <span class="mark" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F1117" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.6h5"></path><path d="M12 2.6v2.4"></path><circle cx="12" cy="13.4" r="8.2"></circle><path d="M12 13.4V8.6"></path><path d="M12 13.4l3 1.9"></path><circle cx="12" cy="13.4" r="0.6" fill="#fff" stroke="none"></circle></svg>
     </span>
-    <h1>PunchIn Email — Admin</h1>
+    <h1>Punch<span style="color:var(--accent)">I</span>n Email — Admin</h1>
   </div>
   <p class="sub">Signed in as <strong id="who">…</strong> · relay domain <code id="relayDomain"></code></p>
   <form id="form" class="card" autocomplete="off">
