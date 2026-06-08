@@ -13,9 +13,9 @@
 # PunchIn Terms of Service
 
 > **Status: Draft — pending legal review. Not yet in effect.** Drafted 8 June 2026.
-> See the [notes for the reviewer](#notes-for-the-reviewer) at the end.
+<!-- > See the [notes for the reviewer](#notes-for-the-reviewer) at the end.
 
-**Effective date:** 8 June 2026 _(takes effect on publication)_
+**Effective date:** 8 June 2026 _(takes effect on publication)_ -->
 
 These Terms of Service ("**Terms**") are an agreement between you and **PunchIn-App**,
 an independent software project operated by an individual developer ("**PunchIn**",
@@ -271,7 +271,7 @@ Security reports: see the
 <!-- ============================================================
      DELETE EVERYTHING BELOW THIS LINE BEFORE PUBLISHING.
      These are open items for the human reviewer to resolve.
-     ============================================================ -->
+     ============================================================ 
 
 ## Notes for the reviewer
 
@@ -305,3 +305,4 @@ resolved and the Terms have been reviewed by qualified counsel.
       banner and this section.
 - [ ] **Where it lives.** Committed in all three repositories; linked in-app from
       Settings → About. Keep copies in sync (or redirect to one canonical URL).
+-->
