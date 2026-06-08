@@ -4,9 +4,16 @@ import { THREAD_TTL_SECONDS } from '../src/lib.js';
 import { makeMessage, makeEnv, assertSendableRaw } from './helpers.js';
 
 describe('handleInbound', () => {
-  it('stores a thread and forwards allowed aliases with a relay Reply-To', async () => {
+  const inboundRaw = (from = 'partner@corp.com', to = 'cla@trackmytime.today') =>
+    `From: ${from}\r\nTo: ${to}\r\nReply-To: ${from}\r\nSubject: Need help\r\nMessage-ID: <orig@corp.com>\r\n\r\nplease look at this`;
+
+  it('stores a thread and sends to the inbox from the alias with a relay Reply-To', async () => {
     const env = makeEnv();
-    const msg = makeMessage({ from: 'partner@corp.com', to: 'cla@trackmytime.today' });
+    const msg = makeMessage({
+      from: 'partner@corp.com',
+      to: 'cla@trackmytime.today',
+      raw: inboundRaw(),
+    });
 
     await handleInbound(msg, env);
 
@@ -18,26 +25,44 @@ describe('handleInbound', () => {
     expect(stored.aliasEmail).toBe('cla@trackmytime.today');
     expect(options.expirationTtl).toBe(2592000);
 
-    expect(msg.calls.forward).toHaveLength(1);
-    expect(msg.calls.forward[0].dest).toBe('owner@example.com');
-    expect(msg.calls.forward[0].headers.get('Reply-To')).toBe(
-      `relay+${key}@trackmytime.today`
-    );
+    // Delivered via the Send binding (not forward) so the Reply-To survives.
+    expect(msg.calls.forward).toHaveLength(0);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+    const out = env.EMAIL_SENDING.sent[0];
+    expect(out.from).toBe('cla@trackmytime.today'); // envelope from = the alias
+    expect(out.to).toBe('owner@example.com');
+
+    const [line1, line2, line3] = out.raw.split('\r\n');
+    expect(line1).toBe('From: "partner@corp.com via PunchIn" <cla@trackmytime.today>');
+    expect(line2).toBe('To: owner@example.com');
+    expect(line3).toBe(`Reply-To: relay+${key}@trackmytime.today`);
+
+    // The inbox owner's real address must not be exposed to the sender path, and
+    // the original sender-bound Reply-To must be gone (only the relay one remains).
+    expect(out.raw).not.toContain('Reply-To: partner@corp.com');
+    expect(out.raw).toContain('please look at this'); // body preserved
     expect(msg.calls.reject).toHaveLength(0);
   });
 
-  it('preserves the +subaddress in the stored alias', async () => {
+  it('preserves the +subaddress in both the stored alias and the From it sends as', async () => {
     const env = makeEnv();
-    const msg = makeMessage({ from: 'p@corp.com', to: 'cve+report@trackmytime.today' });
+    const msg = makeMessage({
+      from: 'p@corp.com',
+      to: 'cve+report@trackmytime.today',
+      raw: inboundRaw('p@corp.com', 'cve+report@trackmytime.today'),
+    });
 
     await handleInbound(msg, env);
 
     expect(JSON.parse(env.EMAIL_THREADS.puts[0].value).aliasEmail).toBe(
       'cve+report@trackmytime.today'
     );
+    const out = env.EMAIL_SENDING.sent[0];
+    expect(out.from).toBe('cve+report@trackmytime.today');
+    expect(out.raw).toContain('From: "p@corp.com via PunchIn" <cve+report@trackmytime.today>');
   });
 
-  it('rejects unknown aliases and never forwards', async () => {
+  it('rejects unknown aliases and never sends or forwards', async () => {
     const env = makeEnv();
     const msg = makeMessage({ from: 'p@corp.com', to: 'nope@trackmytime.today' });
 
@@ -47,6 +72,7 @@ describe('handleInbound', () => {
       'No such address at trackmytime.today. See https://trackmytime.today',
     ]);
     expect(msg.calls.forward).toHaveLength(0);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
     expect(env.EMAIL_THREADS.puts).toHaveLength(0);
   });
 
@@ -314,12 +340,17 @@ describe('email() routing', () => {
 
   it('routes alias addresses to the inbound handler', async () => {
     const env = makeEnv();
-    const msg = makeMessage({ from: 'p@corp.com', to: 'abuse@trackmytime.today' });
+    const msg = makeMessage({
+      from: 'p@corp.com',
+      to: 'abuse@trackmytime.today',
+      raw: 'From: p@corp.com\r\nSubject: hi\r\n\r\nbody',
+    });
 
     await worker.email(msg, env);
 
-    expect(msg.calls.forward).toHaveLength(1);
-    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(1);
+    expect(env.EMAIL_SENDING.sent[0].raw).toContain('From: "p@corp.com via PunchIn" <abuse@trackmytime.today>');
+    expect(msg.calls.forward).toHaveLength(0);
   });
 
   it('is case-insensitive about the relay+ prefix', async () => {

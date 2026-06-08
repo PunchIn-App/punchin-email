@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.0] — 2026-06-08
+
+A privacy fix to the inbound path. Observable in delivered mail (the `From` of
+forwarded mail changes), so `MINOR` per the versioning tiebreaker.
+
+### Security
+
+- **Inbound no longer leaks the inbox address on a reply (the doxxing fix).**
+  `handleInbound` previously delivered mail with `message.forward(FORWARD_TO, {
+  Reply-To: relay+<id>@ })`. Cloudflare's `forward()` **silently drops** an added
+  `Reply-To`, so the forwarded mail kept the original sender's own `From` and no
+  working relay `Reply-To` — and the inbox owner's reply went **straight to the
+  stranger from the owner's personal address**, exposing it. The inbound path now
+  **sends** the mail via the `EMAIL_SENDING` binding (the same mechanism the relay
+  already uses) instead of forwarding it, rewritten so that:
+  - `From:` is the alias the sender wrote to — `"<sender> via PunchIn"
+    <alias@RELAY_DOMAIN>` (the sender is shown in the display name so the owner
+    still sees who it is);
+  - `Reply-To:` is the working `relay+<id>@RELAY_DOMAIN`.
+
+  Both are relay-controlled, so the owner's reply always re-enters `handleRelay`
+  and is re-masked from the alias — the personal address is never exposed in
+  either direction. Even a mail client that ignores `Reply-To` and replies to the
+  `From` only re-enters `handleInbound` (the alias), never the stranger, so there
+  is no leak path. Because the envelope and header `From` are both alias addresses
+  on `RELAY_DOMAIN`, the sent mail aligns DKIM/DMARC. `rewriteHeaders` gained an
+  optional 4th `replyTo` argument to inject the inbound `Reply-To`; the relay
+  direction omits it, preserving the asymmetric threading model.
+
+---
+
 ## [1.4.0] — 2026-06-07
 
 ### Added

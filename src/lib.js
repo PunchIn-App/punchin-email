@@ -289,11 +289,18 @@ export function normalizeContactUrl(value) {
  * Content-*, ... — enough to render and thread the reply), then prepend a
  * fresh From/To. Everything else, including the trace/authentication headers
  * that can leak the relaying inbox's address, is dropped.
+ * Optionally inject a fresh `Reply-To` (the inbound path uses this to point the
+ * inbox owner's reply back at `relay+<id>@RELAY_DOMAIN`). When `replyTo` is
+ * omitted the rewrite adds no Reply-To at all — the relay (owner → original
+ * sender) direction deliberately stays Reply-To-less so the original sender
+ * replies to the bare alias and re-enters `handleInbound` (the documented
+ * asymmetric threading model).
  * @param {string} rawText
  * @param {string} from
  * @param {string} to
+ * @param {string} [replyTo] when set, a `Reply-To: <replyTo>` is added after To
  */
-export function rewriteHeaders(rawText, from, to) {
+export function rewriteHeaders(rawText, from, to, replyTo) {
   // Normalize line endings to CRLF first so a message using bare LF (or CR)
   // separators parses the same as a CRLF one. Without this the `\r\n\r\n` split
   // misses on an LF-only message, every header is dropped, and the body is lost
@@ -312,10 +319,32 @@ export function rewriteHeaders(rawText, from, to) {
     .split('\r\n')
     .filter((line) => KEPT_HEADER_RE.test(line));
 
-  // Strip CR/LF from the injected From/To values so a crafted alias / sender
-  // address can't smuggle extra headers into the outbound message (issue #27).
+  // Strip CR/LF from the injected From/To/Reply-To values so a crafted alias /
+  // sender address can't smuggle extra headers into the outbound message
+  // (issue #27).
   const safe = (v) => String(v).replace(/[\r\n]/g, '');
-  const newHeaders = [`From: ${safe(from)}`, `To: ${safe(to)}`, ...kept].join('\r\n');
+  const replyToLines = replyTo ? [`Reply-To: ${safe(replyTo)}`] : [];
+  const newHeaders = [`From: ${safe(from)}`, `To: ${safe(to)}`, ...replyToLines, ...kept].join('\r\n');
 
   return newHeaders + body;
+}
+
+/**
+ * Build the `From` header for an inbound relay (original sender → inbox owner).
+ *
+ * The address is the **alias the sender wrote to** (e.g. `abuse@trackmytime.today`)
+ * — a relay-controlled address — so that even a mail client that ignores the
+ * `Reply-To` and replies to the From can never reach the original sender (it
+ * just re-enters the relay). The original sender is carried in the display name
+ * so the owner still sees who it is. The sender is attacker-influenced data, so
+ * it is escaped before going inside the quoted-string (and `rewriteHeaders`
+ * additionally strips CR/LF from the whole value).
+ *
+ * @param {string} originalSender envelope sender of the inbound mail
+ * @param {string} aliasEmail full alias address the sender wrote to (keeps +subaddress)
+ * @returns {string} an RFC 5322 `Display Name <addr>` From value
+ */
+export function inboundFromHeader(originalSender, aliasEmail) {
+  const name = (String(originalSender || '').trim() || 'unknown sender').replace(/[\\"]/g, '\\$&');
+  return `"${name} via PunchIn" <${aliasEmail}>`;
 }
