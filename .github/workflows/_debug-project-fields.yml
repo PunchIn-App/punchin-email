@@ -1,0 +1,27 @@
+# TEMPORARY one-shot: dumps org project #1's field schema to the Actions log so we
+# can reconcile project-automation.yml's field/option assumptions against the board.
+# Runs under ADD_TO_PROJECT_PAT (the only token with project scope). Delete after use.
+name: _debug project fields
+on:
+  workflow_dispatch: {}
+permissions: {}
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        env:
+          PROJECT_OWNER: PunchIn-App
+          PROJECT_NUMBER: "1"
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            const owner = process.env.PROJECT_OWNER, number = Number(process.env.PROJECT_NUMBER);
+            const q = await github.graphql(`query($o:String!,$n:Int!){ organization(login:$o){ projectV2(number:$n){ id title
+              items(first:1){ totalCount }
+              fields(first:50){ nodes{
+                __typename
+                ... on ProjectV2FieldCommon{ name dataType }
+                ... on ProjectV2SingleSelectField{ name options{ name } } } } } } }`, { o: owner, n: number });
+            const p = q.organization.projectV2;
+            core.info('PROJECT_SCHEMA_DUMP:' + JSON.stringify({ title: p.title, items: p.items.totalCount, fields: p.fields.nodes }));
