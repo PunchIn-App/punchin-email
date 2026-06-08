@@ -7,7 +7,7 @@ describe('getSettings', () => {
     const env = makeEnv();
     const s = await getSettings(env);
     expect(s.forwardTo).toBe('owner@example.com');
-    expect(s.allowedAliases).toBe('cla,licensing,cve,abuse');
+    expect(s.allowedAliases).toBe('abuse,cla,contact,cve,feedback,licensing');
     expect(s.contactUrl).toBe('https://trackmytime.today');
     expect(s.relayDomain).toBe('trackmytime.today');
     expect(s.source).toEqual({ forwardTo: 'env', allowedAliases: 'env', contactUrl: 'env' });
@@ -23,7 +23,7 @@ describe('getSettings', () => {
     const s = await getSettings(env);
     expect(s.forwardTo).toBe('new@example.com'); // from KV
     expect(s.source.forwardTo).toBe('kv');
-    expect(s.allowedAliases).toBe('cla,licensing,cve,abuse'); // still env
+    expect(s.allowedAliases).toBe('abuse,cla,contact,cve,feedback,licensing'); // still env
     expect(s.source.allowedAliases).toBe('env');
     expect(s.updatedBy).toBe('me');
   });
