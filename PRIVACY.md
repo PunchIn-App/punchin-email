@@ -12,9 +12,9 @@
 
 > **Status: Draft — pending legal review. Not yet in effect.** Drafted 8 June 2026
 > from the current data practices of the PunchIn app and its supporting services.
-> See the [notes for the reviewer](#notes-for-the-reviewer) at the end.
+<!-- > See the [notes for the reviewer](#notes-for-the-reviewer) at the end.
 
-**Effective date:** 8 June 2026 _(takes effect on publication)_
+**Effective date:** 8 June 2026 _(takes effect on publication)_ -->
 
 PunchIn is a time-tracking app for freelancers and independent contractors. It is
 built to be **private by design**: your data is stored on your own device, and
@@ -440,7 +440,7 @@ To report a security vulnerability, please follow our
 <!-- ============================================================
      DELETE EVERYTHING BELOW THIS LINE BEFORE PUBLISHING.
      These are open items for the human reviewer to resolve.
-     ============================================================ -->
+     ============================================================ 
 
 ## Notes for the reviewer
 
@@ -473,3 +473,4 @@ are resolved and the policy has been reviewed by qualified counsel.
 - [ ] **Keep it in sync with the code.** Re-check this policy whenever a change adds a
       new data flow, network call, third-party service, or stored field across any of the
       three repositories.
+-->
