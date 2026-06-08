@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -65,13 +65,29 @@ This repo is tracked on the shared **[PunchIn project board](https://github.com/
 - `normalizeAliasList(input)` — clean/dedupe/sort alias local-parts; throws on an
   invalid or reserved (`relay`) token
 - `normalizeContactUrl(value)` — validate the optional contact URL (empty or http(s))
-- `rewriteHeaders(rawText, from, to)` — swaps From/To, strips sender-bound headers
+- `rewriteHeaders(rawText, from, to, replyTo?)` — swaps From/To, strips sender-bound
+  headers; with the optional `replyTo` it injects a fresh `Reply-To` (the inbound
+  path uses this; the relay path omits it to keep the asymmetric model)
+- `inboundFromHeader(originalSender, aliasEmail)` — builds the inbound `From`:
+  `"<sender> via PunchIn" <alias@RELAY_DOMAIN>` (alias as the address, sender escaped
+  into the display name)
 
 ## Email Flow
 
 **Inbound** (`handleInbound`): reject non-allowlisted recipients → generate a
 thread id → store `{originalSender, aliasEmail, timestamp}` in `EMAIL_THREADS`
-(30-day TTL) → `message.forward(FORWARD_TO, { Reply-To: relay+<id>@RELAY_DOMAIN })`.
+(30-day TTL) → rewrite the raw message so it is `From` the alias
+(`inboundFromHeader` → `"<sender> via PunchIn" <alias>`), `To` the inbox, with
+`Reply-To: relay+<id>@RELAY_DOMAIN`, and **send** it via `EMAIL_SENDING`.
+
+It deliberately does **not** `message.forward()` (the doxxing fix):
+`forward()` silently drops the added `Reply-To`, so the owner's reply went
+straight to the original sender — leaking the inbox's real address. Sending lets
+both the `From` and the `Reply-To` be relay-controlled addresses, so the owner's
+reply always re-enters `handleRelay` and is re-masked. Even a client that ignores
+`Reply-To` and replies to the `From` only re-enters `handleInbound` (the alias),
+never the sender — there is no leak path. (Envelope From is the bare alias, a
+verified `RELAY_DOMAIN` address, so DKIM/DMARC align.)
 
 **Relay** (`handleRelay`): reject if `From != FORWARD_TO` → reject if the reply's
 SPF/DKIM/DMARC verdict shows it didn't authenticate as the `FORWARD_TO` domain
@@ -84,15 +100,22 @@ everything else → inbound handler. Both handlers read the effective config via
 `getSettings(env)` (KV record layered over env defaults), so the forwarding
 address / aliases / contact URL can change at runtime.
 
-**Threading model (deliberately asymmetric).** The owner's replies leave via
-`relay+<id>@RELAY_DOMAIN` → `handleRelay`, gated by `From == FORWARD_TO`. The
-outbound to the original sender is intentionally **not** given a `relay+<id>`
-`Reply-To`: that address is reserved for the authenticated owner, so routing the
-original sender's replies through it would only hit the relay-sender gate and
-bounce. Instead the original sender replies to the bare alias, which re-enters
-`handleInbound` and mints a **fresh** thread id; `In-Reply-To`/`References`
-preserve client-side threading. A new thread id per inbound is therefore expected
-behaviour, not a bug (issue #33).
+**Threading model (deliberately asymmetric).** The two directions use the
+`relay+<id>` Reply-To differently — on purpose:
+
+- **Inbound → owner** (`handleInbound`) **does** carry `Reply-To:
+  relay+<id>@RELAY_DOMAIN`. That is the owner's reply channel: the owner's reply
+  lands on `relay+<id>@` → `handleRelay`, gated by `From == FORWARD_TO`, and is
+  re-masked out from the alias. Reserving `relay+<id>` for the authenticated owner
+  is exactly what makes setting it here safe (a stranger who learned the id can't
+  drive the relay — they fail the `From == FORWARD_TO` gate).
+- **Relay → original sender** (`handleRelay`) is intentionally **not** given a
+  `relay+<id>` `Reply-To` — that address is reserved for the owner, so routing the
+  sender's replies through it would only hit the relay-sender gate and bounce.
+  Instead the original sender replies to the bare alias, which re-enters
+  `handleInbound` and mints a **fresh** thread id; `In-Reply-To`/`References`
+  preserve client-side threading. A new thread id per inbound is therefore expected
+  behaviour, not a bug (issue #33).
 
 **Thread TTL.** Each mapping is stored with a 30-day TTL (`THREAD_TTL_SECONDS`). A
 successful relay **refreshes** that TTL (re-puts the record verbatim), so an
@@ -157,7 +180,14 @@ with `--accent`. The canonical tokens live in the `punchin-design-system` projec
   drops everything else by default — so trace/auth headers that can leak the
   inbox address (`Received`, `Authentication-Results`, `ARC-*`, `X-Google-*`,
   `DKIM-Signature`, `Return-Path`, `Reply-To`, `Sender`, …), including any future
-  `X-` header, never survive. Cloudflare re-signs DKIM on the outbound send.
+  `X-` header, never survive. Any inbound `Reply-To` is therefore dropped too; the
+  fresh `From`/`To` (and, on the inbound path only, a fresh `Reply-To`) are then
+  prepended by `rewriteHeaders`. Injecting that inbound `Reply-To` does not weaken
+  the guard: its value is the server-minted `relay+<id>@RELAY_DOMAIN`, which
+  contains a random 64-bit id and nothing about the inbox address, and the sender's
+  own `Reply-To` is still stripped first — so no inbox metadata leaks and the
+  injected value is not attacker-controlled (no header-injection vector; CR/LF are
+  stripped from it regardless). Cloudflare re-signs DKIM on the outbound send.
 
 ## Development Workflow
 

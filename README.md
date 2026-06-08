@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2D5BF5?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=2D5BF5)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.4.0-2D5BF5?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.5.0-2D5BF5?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -10,9 +10,10 @@
 A [Cloudflare Email Worker](https://developers.cloudflare.com/email-routing/email-workers/)
 that powers the `@trackmytime.today` role aliases and a two-way reply relay. Mail
 to `abuse@`, `cla@`, `contact@`, `cve@`, `feedback@`, `licensing@` (plus any
-`+subaddress`) is forwarded to your Gmail. When you simply hit **Reply**, the response goes back out **from
-the original alias** to the original sender — no manual "From" selection, no
-leaking your personal address.
+`+subaddress`) is delivered to your inbox **from the alias itself** (with the
+sender shown in the display name). When you simply hit **Reply**, the response
+goes back out **from the original alias** to the original sender — no manual
+"From" selection, and your personal address is never exposed in either direction.
 
 This is the infrastructure behind the contact addresses in the main
 [PunchIn](https://github.com/PunchIn-App/punchin) project's governance docs:
@@ -27,7 +28,7 @@ CLA → `cla@`, security → `cve@` (with `cve+<number>@` sub-addressing), condu
 | **For** | The `@trackmytime.today` contact addresses behind the [PunchIn](https://github.com/PunchIn-App/punchin) project's governance docs. Self-hostable for any domain on Cloudflare Email Routing. |
 | **Stack** | Cloudflare Email Workers + Workers KV + Email Sending binding. No framework, no build step, no database. |
 | **State** | Thread mappings live in KV with a 30-day TTL; admin-editable settings live in KV under `settings:v1`. Nothing is persisted beyond that. |
-| **Status** | Stable — v1.4.0. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for history. |
+| **Status** | Stable — v1.5.0. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for history. |
 | **License** | [Apache-2.0](LICENSE). Security policy: [`SECURITY.md`](SECURITY.md). |
 
 The design priority is **privacy and least surprise**: your personal inbox is
@@ -47,9 +48,9 @@ ordinary inbox.
 
 ```
                   ┌─────────────────────────── inbound ───────────────────────────┐
-  partner@corp.com ──► cla@trackmytime.today ──► [Worker] ──► forwards to your Gmail
-                                                    │                 (Reply-To:
-                                                    │            relay+<id>@trackmytime.today)
+  partner@corp.com ──► cla@trackmytime.today ──► [Worker] ──► sends to your Gmail
+                                                    │       FROM "partner… via PunchIn" <cla@>
+                                                    │       Reply-To: relay+<id>@trackmytime.today
                                           stores {originalSender,
                                           aliasEmail} in KV under <id>
 
@@ -62,8 +63,13 @@ ordinary inbox.
 
 1. **Inbound** (`handleInbound`): an email to an allowed alias generates a random
    16-char thread id, stores `{ originalSender, aliasEmail, timestamp }` in the
-   `EMAIL_THREADS` KV namespace (30-day TTL), and forwards the message to
-   `FORWARD_TO` with `Reply-To: relay+<id>@<RELAY_DOMAIN>`.
+   `EMAIL_THREADS` KV namespace (30-day TTL), and **sends** the message to
+   `FORWARD_TO` via the `EMAIL_SENDING` binding — rewritten so it comes `From` the
+   alias (`"<sender> via PunchIn" <alias@RELAY_DOMAIN>`) with
+   `Reply-To: relay+<id>@<RELAY_DOMAIN>`. It deliberately does **not** `forward()`:
+   `forward()` drops the added `Reply-To`, which would route your reply straight to
+   the sender and expose your inbox address. Both `From` and `Reply-To` are
+   relay-controlled, so your reply always comes back through the relay.
 2. **Relay** (`handleRelay`): your reply lands on `relay+<id>@…`. The worker
    verifies the sender (`From == FORWARD_TO`, plus a defence-in-depth check on
    the SPF/DKIM/DMARC verdict Cloudflare stamped on the reply), looks up the
@@ -163,10 +169,13 @@ route, because the worker already enforces the alias allowlist itself:
    `punchin-email`. (Alternatively, create individual `Send to a Worker` rules
    for `abuse`, `cla`, `contact`, `cve`, `feedback`, `licensing`, **and** `relay` — but catch-all is
    less error-prone.)
-3. **Destination addresses** → verify `FORWARD_TO`. Inbound forwarding will not
-   work until this address shows **Verified**.
-4. Ensure the domain's DKIM for Email Sending is configured so relayed mail is
-   signed for `trackmytime.today`.
+3. **Email Sending** → ensure the domain's DKIM for Email Sending is configured so
+   that **both** the inbound mail delivered to your inbox **and** the relayed
+   replies are signed for `trackmytime.today`. The worker delivers inbound mail by
+   *sending* it (via the `EMAIL_SENDING` binding), not by `forward()`-ing, so
+   `FORWARD_TO` does **not** need to be a verified Email Routing *destination* — it
+   just needs to be a real mailbox you control (it is also the only address allowed
+   to drive the relay).
 
 > **Subaddressing (the Cloudflare setting) is optional with catch-all.** Catch-all
 > delivers the full recipient — including `cla+foo@`, `cve+123@`, and the

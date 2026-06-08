@@ -9,6 +9,7 @@ import {
   relayReplyAuthVerdict,
   senderDomainOf,
   rewriteHeaders,
+  inboundFromHeader,
   THREAD_TTL_SECONDS,
   isValidEmailAddress,
   normalizeAliasList,
@@ -254,6 +255,51 @@ describe('rewriteHeaders', () => {
     expect(out).not.toMatch(/^Bcc:/m);
     expect(out).not.toMatch(/^X-Evil:/m);
     expect(out).toContain('From: cla@trackmytime.todayBcc: victim@corp.com'); // collapsed onto one line, inert
+  });
+
+  it('injects a Reply-To when the 4th arg is given, after From/To (inbound path)', () => {
+    const out = rewriteHeaders(raw, 'partner@corp.com via PunchIn" <abuse@trackmytime.today>', 'owner@example.com', 'relay+abc123@trackmytime.today');
+    const lines = out.split('\r\n');
+    expect(lines[0]).toMatch(/^From: /);
+    expect(lines[1]).toBe('To: owner@example.com');
+    expect(lines[2]).toBe('Reply-To: relay+abc123@trackmytime.today');
+    // the original sender-bound Reply-To from the source message is still gone
+    expect(out).not.toContain('Reply-To: owner@example.com');
+  });
+
+  it('adds no Reply-To when the 4th arg is omitted (relay path stays asymmetric)', () => {
+    const out = rewriteHeaders(raw, 'cla@trackmytime.today', 'partner@corp.com');
+    expect(out).not.toMatch(/^Reply-To:/m);
+  });
+
+  it('strips CR/LF from an injected Reply-To too (#27)', () => {
+    const out = rewriteHeaders('Subject: x\r\n\r\nbody', 'a@b.com', 'c@d.com', 'relay+abc@trackmytime.today\r\nBcc: victim@corp.com');
+    expect(out).not.toMatch(/^Bcc:/m);
+    expect(out).toContain('Reply-To: relay+abc@trackmytime.todayBcc: victim@corp.com');
+  });
+});
+
+describe('inboundFromHeader', () => {
+  it('shows the original sender as the display name and the alias as the address', () => {
+    const out = inboundFromHeader('partner@corp.com', 'abuse@trackmytime.today');
+    expect(out).toBe('"partner@corp.com via PunchIn" <abuse@trackmytime.today>');
+  });
+
+  it('preserves the +subaddress in the alias address', () => {
+    expect(inboundFromHeader('p@corp.com', 'cve+report@trackmytime.today')).toBe(
+      '"p@corp.com via PunchIn" <cve+report@trackmytime.today>'
+    );
+  });
+
+  it('escapes quotes and backslashes in the sender so the display name cannot break quoting', () => {
+    const out = inboundFromHeader('a"b\\c@evil.com', 'abuse@trackmytime.today');
+    expect(out).toBe('"a\\"b\\\\c@evil.com via PunchIn" <abuse@trackmytime.today>');
+  });
+
+  it('falls back to a placeholder when the sender is empty', () => {
+    expect(inboundFromHeader('', 'abuse@trackmytime.today')).toBe(
+      '"unknown sender via PunchIn" <abuse@trackmytime.today>'
+    );
   });
 });
 

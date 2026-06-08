@@ -9,6 +9,7 @@ import {
   relayReplyAuthVerdict,
   senderDomainOf,
   rewriteHeaders,
+  inboundFromHeader,
 } from './lib.js';
 import { getSettings } from './settings.js';
 import { authenticateAdmin } from './access.js';
@@ -18,9 +19,24 @@ import { handleAdminRequest } from './admin.js';
  * Inbound handler — called for the alias addresses in the effective settings
  * (e.g. cla@, licensing@, cve@, abuse@), including any +subaddress variant.
  *
- * Stores a thread mapping in KV and forwards to the configured inbox with a
- * Reply-To that encodes the thread id, so the relay handler can look it up on
- * the way back out.
+ * Stores a thread mapping in KV and **sends** the mail to the configured inbox
+ * (it does not `forward()` it) with a Reply-To that encodes the thread id, so
+ * the relay handler can look it up on the way back out.
+ *
+ * Why send, not forward (the doxxing fix): `message.forward()`
+ * silently drops any added `Reply-To` header, and even on a send path the
+ * `rewriteHeaders` allowlist strips an inbound `Reply-To`. With `forward()` the
+ * inbox owner's reply therefore went straight to the original sender's own
+ * address — exposing the owner's real inbox address to a stranger. Sending lets
+ * us set BOTH the From and the Reply-To to relay-controlled addresses:
+ *   - From: `"<sender> via PunchIn" <alias@RELAY_DOMAIN>` — the alias the sender
+ *     wrote to (sender shown in the display name so the owner still sees who).
+ *   - Reply-To: `relay+<id>@RELAY_DOMAIN`.
+ * Either way the owner's reply re-enters `handleRelay`, which re-masks it, so
+ * the owner's address never reaches the original sender. The `relay+<id>` value
+ * leaks nothing about the inbox (it is a server-minted random id, not sender
+ * data), so injecting it as a Reply-To is safe. DKIM/DMARC align on
+ * `RELAY_DOMAIN` because both the envelope and header From are alias addresses.
  */
 export async function handleInbound(message, env) {
   const settings = await getSettings(env);
@@ -47,8 +63,14 @@ export async function handleInbound(message, env) {
   );
 
   const replyTo = `relay+${threadId}@${env.RELAY_DOMAIN}`;
+  const fromHeader = inboundFromHeader(message.from, message.to);
 
-  await message.forward(settings.forwardTo, new Headers({ 'Reply-To': replyTo }));
+  const rawText = await new Response(message.raw).text();
+  const rewritten = rewriteHeaders(rawText, fromHeader, settings.forwardTo, replyTo);
+
+  // Envelope From is the bare alias (a verified RELAY_DOMAIN address); the
+  // display name lives only in the rewritten From header.
+  await env.EMAIL_SENDING.send(new EmailMessage(message.to, settings.forwardTo, rewritten));
 }
 
 /**
