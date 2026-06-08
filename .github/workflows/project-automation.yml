@@ -25,7 +25,7 @@ jobs:
     # Skip fork PRs (no secrets) and Dependabot (no secrets passed to its events).
     if: ${{ (github.event_name == 'issues' || github.event.pull_request.head.repo.fork == false) && github.actor != 'dependabot[bot]' }}
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         env:
           PROJECT_OWNER: PunchIn-App
           PROJECT_NUMBER: "1"
