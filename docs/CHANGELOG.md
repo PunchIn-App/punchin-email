@@ -47,6 +47,9 @@ forwarded mail changes), so `MINOR` per the versioning tiebreaker.
   optional 4th `replyTo` argument to inject the inbound `Reply-To`; the relay
   direction omits it, preserving the asymmetric threading model.
 
+  Advisory: [GHSA-2ph7-69xm-hmwv](https://github.com/PunchIn-App/punchin-email/security/advisories/GHSA-2ph7-69xm-hmwv)
+  (severity Low; CVE requested). Fix: [#66](https://github.com/PunchIn-App/punchin-email/pull/66).
+
 ---
 
 ## [1.4.0] — 2026-06-07
