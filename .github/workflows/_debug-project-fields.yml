@@ -1,5 +1,5 @@
-# TEMPORARY one-shot: dumps org project #1's field schema to the Actions log so we
-# can reconcile project-automation.yml's field/option assumptions against the board.
+# TEMPORARY one-shot: dumps org project #1's items + their field values to the
+# Actions log so we can see what the automation actually populates. Read-only.
 # Runs under ADD_TO_PROJECT_PAT (the only token with project scope). Delete after use.
 name: _debug project fields
 on:
@@ -17,11 +17,21 @@ jobs:
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
             const owner = process.env.PROJECT_OWNER, number = Number(process.env.PROJECT_NUMBER);
-            const q = await github.graphql(`query($o:String!,$n:Int!){ organization(login:$o){ projectV2(number:$n){ id title
-              items(first:1){ totalCount }
-              fields(first:50){ nodes{
-                __typename
-                ... on ProjectV2FieldCommon{ name dataType }
-                ... on ProjectV2SingleSelectField{ name options{ name } } } } } } }`, { o: owner, n: number });
-            const p = q.organization.projectV2;
-            core.info('PROJECT_SCHEMA_DUMP:' + JSON.stringify({ title: p.title, items: p.items.totalCount, fields: p.fields.nodes }));
+            const q = await github.graphql(`query($o:String!,$n:Int!){ organization(login:$o){ projectV2(number:$n){
+              items(first:20){ nodes{
+                content{ __typename ... on PullRequest{ number repository{ name } } ... on Issue{ number repository{ name } } }
+                fieldValues(first:30){ nodes{
+                  __typename
+                  ... on ProjectV2ItemFieldSingleSelectValue{ name field{ ... on ProjectV2FieldCommon{ name } } }
+                  ... on ProjectV2ItemFieldDateValue{ date field{ ... on ProjectV2FieldCommon{ name } } } } } } } } } }`, { o: owner, n: number });
+            const rows = q.organization.projectV2.items.nodes.map(it => {
+              const c = it.content || {};
+              const vals = {};
+              for (const fv of (it.fieldValues?.nodes || [])) {
+                const fn = fv.field?.name; if (!fn) continue;
+                if (fv.name !== undefined) vals[fn] = fv.name;
+                else if (fv.date !== undefined) vals[fn] = fv.date;
+              }
+              return { repo: c.repository?.name, n: c.number, type: c.__typename, Priority: vals['Priority'] ?? null, Size: vals['Size'] ?? null, Start: vals['Start date'] ?? null, Target: vals['Target date'] ?? null, Status: vals['Status'] ?? null };
+            });
+            core.info('PROJECT_ITEMS_DUMP:' + JSON.stringify(rows));
