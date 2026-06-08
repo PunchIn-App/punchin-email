@@ -7,7 +7,7 @@ import { getSettings, updateSettings } from './settings.js';
 const EDITABLE_FIELDS = ['forwardTo', 'allowedAliases', 'contactUrl'];
 
 // Kept in sync with package.json / CLAUDE.md on each behaviour change.
-const VERSION = '1.3.1';
+const VERSION = '1.4.0';
 const REPO_URL = 'https://github.com/PunchIn-App/punchin-email';
 
 function jsonResponse(obj, status = 200) {
@@ -182,8 +182,8 @@ function renderAdminPage() {
     <input id="forwardTo" type="text" inputmode="email" placeholder="you@example.com">
 
     <label>Accepted aliases <span id="allowedAliasesSrc" class="badge"></span></label>
-    <div class="hint">Comma-separated local-parts allowed to forward, e.g. <code>cla, licensing, cve, abuse</code>.</div>
-    <input id="allowedAliases" type="text" placeholder="cla, licensing, cve, abuse">
+    <div class="hint">Comma-separated local-parts allowed to forward, e.g. <code>abuse, cla, contact, cve, feedback, licensing</code>.</div>
+    <input id="allowedAliases" type="text" placeholder="abuse, cla, contact, cve, feedback, licensing">
 
     <label>Contact URL <span id="contactUrlSrc" class="badge"></span></label>
     <div class="hint">Shown in the bounce for unknown addresses. Leave blank to default to https://&lt;relay domain&gt;.</div>

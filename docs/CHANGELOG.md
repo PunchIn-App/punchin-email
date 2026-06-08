@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.0] — 2026-06-07
+
+### Added
+
+- **Inbound** — two new role aliases now forward to the inbox: `contact@`
+  (general contact) and `feedback@` (product feedback), joining the existing
+  `cla@`, `cve@`, `abuse@`, and `licensing@`. The default `ALLOWED_ALIASES` is
+  now `abuse,cla,contact,cve,feedback,licensing`. Because the worker runs behind
+  a catch-all route, no new per-address routing rule is needed — mail to the new
+  aliases (and any `+subaddress`) is accepted and forwarded like the others, and
+  replies relay back out from the alias as usual.
+
+---
+
 ## [1.3.1] — 2026-06-04
 
 A security-hardening patch. No change to normal mail flow.

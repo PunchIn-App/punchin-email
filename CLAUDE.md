@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.3.1
+**Version:** 1.4.0
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -9,7 +9,7 @@ making changes, and keep it current (see Documentation Requirements in
 ## Project Overview
 
 A Cloudflare Email Worker that gives `trackmytime.today` a set of two-way role
-aliases. Inbound mail to `cla@`, `licensing@`, `cve@`, `abuse@` (and any
+aliases. Inbound mail to `abuse@`, `cla@`, `contact@`, `cve@`, `feedback@`, `licensing@` (and any
 `+subaddress`) is forwarded to a personal inbox; replies from that inbox go back
 out **from the original alias to the original sender**, with no manual "From"
 selection. It is the infrastructure behind the contact addresses referenced in

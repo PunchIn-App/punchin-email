@@ -7,13 +7,13 @@ security updates.
 
 | Version | Supported |
 | ------- | --------- |
-| 1.3.x   | Yes       |
-| < 1.3   | No        |
+| 1.4.x   | Yes       |
+| < 1.4   | No        |
 
 ## Scope
 
 The PunchIn Email Worker is the Cloudflare Email Worker that powers the
-`@trackmytime.today` role aliases (`cla@`, `licensing@`, `cve@`, `abuse@`) and
+`@trackmytime.today` role aliases (`abuse@`, `cla@`, `contact@`, `cve@`, `feedback@`, `licensing@`) and
 the two-way reply relay. In scope are:
 
 - The worker source (`src/index.js`, `src/lib.js`, `src/settings.js`,
