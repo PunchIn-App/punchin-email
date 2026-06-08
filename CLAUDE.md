@@ -123,11 +123,14 @@ no build step. Below the settings form it carries a static **About** section
 the repo / changelog / security policy). It mirrors the main
 [`punchin`](https://github.com/PunchIn-App/punchin)
 app's design system: Noto Sans / Display / Mono typography (loaded from Google
-Fonts), the app's dark-slate palette and default accent (`#1f6feb` — the app's
-runtime default; the amber in its `index.css` is only a static fallback), and its
-card / input / button conventions. The brand mark is the app's logo — a lucide
-`Clock` (`circle r=10` + `polyline 12 6 12 12 16 14`, dark `#0F1117` ink) on a
-rounded accent square. Keep it visually consistent with that app when editing.
+Fonts), the dark-slate surface ramp, and the default accent **PunchIn Blue
+`#2D5BF5`** (`--accent` — the user-owned token the app repaints from; replaces the
+former `#1f6feb`). Card / input / button conventions follow the design system:
+white-on-accent primary button, `--radius` (11px) inputs, mono overline badges.
+The brand mark is the refreshed **stopwatch** (Lucide `Timer` + `Clock`, white ink)
+on a rounded accent square, and the wordmark tints the capital **I** in "PunchIn"
+with `--accent`. The canonical tokens live in the `punchin-design-system` project
+(`project/colors_and_type.css`); keep this page consistent with it when editing.
 
 ## Robustness Guards (do not weaken without rationale)
 

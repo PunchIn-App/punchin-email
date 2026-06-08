@@ -1,8 +1,8 @@
 # PunchIn Email Worker — Two-Way Alias Relay for trackmytime.today
 
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb?style=flat)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=1f6feb)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.4.0-1f6feb?style=flat)](docs/CHANGELOG.md)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2D5BF5?style=flat)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=2D5BF5)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-1.4.0-2D5BF5?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
