@@ -10,7 +10,7 @@ compatibility_date = "2024-06-03"
 RELAY_DOMAIN    = "trackmytime.today"
 # Comma-separated base local-parts that are allowed to forward. Anything else
 # hitting the catch-all worker is rejected instead of forwarded.
-ALLOWED_ALIASES = "abuse,cla,contact,cve,feedback,licensing"
+ALLOWED_ALIASES = "abuse,cla,contact,cve,feedback,licensing,privacy"
 # URL shown in the bounce when mail hits an unrecognized address. Point this at a
 # real, existing page (defaults to https://<RELAY_DOMAIN> if unset). Repoint it to
 # a dedicated /contact page once one exists.
