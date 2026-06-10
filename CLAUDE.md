@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.6.0
+**Version:** 1.6.1
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -35,11 +35,12 @@ test/
   mocks/             stub for the cloudflare:email module
 docs/
   CHANGELOG.md       Keep a Changelog history
+  RELEASING.md       versioning rules + release procedure (linked from CONTRIBUTING)
 .github/
   CONTRIBUTING.md    contribution workflow + conventions
   workflows/
     ci.yml                    CI: npm test + wrangler dry-run
-    project-automation.yml    adds new issues/PRs to the shared PunchIn project board (#3) + sets Labels/Priority/Size/dates; clears assignees on close
+    project-automation.yml    adds new issues/PRs to the shared PunchIn project board (#1) + sets Labels/Priority/Size/dates; clears assignees on close
     milestone-on-release.yml  on a MINOR/MAJOR release (vX.Y.0): create the vX.Y.0 milestone + assign merged PRs since the last minor/major release (patch releases publish but get no milestone; their PRs roll into the next minor/major)
     notify-status-update.yml  on release: relay to punchin (repository_dispatch: email-release) so it posts a unified, whole-project status update
 wrangler.toml        worker config, vars, and bindings
@@ -47,7 +48,7 @@ wrangler.toml        worker config, vars, and bindings
 
 ## Project board automation
 
-This repo is tracked on the shared **[PunchIn project board](https://github.com/orgs/PunchIn-App/projects/3)** alongside `punchin`. The three project workflows above auto-add and annotate issues/PRs and create release milestones; they run under the `ADD_TO_PROJECT_PAT` secret (Projects + Issues read/write, Contents read/write). **Status** is owned by the project's built-in workflows; **status updates** (the project's "Updates" panel) are posted from `punchin` — this repo's `notify-status-update.yml` just relays its releases there, so every update covers the whole project. See `punchin`'s CLAUDE.md → "Project board automation" for the full description.
+This repo is tracked on the shared **[PunchIn project board](https://github.com/orgs/PunchIn-App/projects/1)** alongside `punchin`. The three project workflows above auto-add and annotate issues/PRs and create release milestones; they run under the `ADD_TO_PROJECT_PAT` secret (Projects + Issues read/write, Contents read/write). **Status** is owned by the project's built-in workflows; **status updates** (the project's "Updates" panel) are posted from `punchin` — this repo's `notify-status-update.yml` just relays its releases there, so every update covers the whole project. See `punchin`'s CLAUDE.md → "Project board automation" for the full description.
 
 ### Helpers (`src/lib.js`)
 
@@ -145,8 +146,10 @@ no build step. Below the settings form it carries a static **About** section
 (worker summary, the `VERSION` constant, relay domain, auth model, and links to
 the repo / changelog / security policy). It mirrors the main
 [`punchin`](https://github.com/PunchIn-App/punchin)
-app's design system: Noto Sans / Display / Mono typography (loaded from Google
-Fonts), the dark-slate surface ramp, and the default accent **PunchIn Blue
+app's design system: Noto Sans / Display / Mono typography (self-hosted-or-system
+only — **no CDN font links**, per the project font policy; the Noto families
+render when installed locally, with `system-ui` / `ui-monospace` fallbacks
+otherwise), the dark-slate surface ramp, and the default accent **PunchIn Blue
 `#2D5BF5`** (`--accent` — the user-owned token the app repaints from; replaces the
 former `#1f6feb`). Card / input / button conventions follow the design system:
 white-on-accent primary button, `--radius` (11px) inputs, mono overline badges.

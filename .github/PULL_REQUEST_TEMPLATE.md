@@ -38,3 +38,9 @@
 
 - [ ] `CLAUDE.md` updated where relevant (Repository Structure / Email Flow / Robustness Guards / Configuration & Bindings)
 - [ ] `README.md` updated if behaviour or setup changed
+
+### Contributor License Agreement
+
+> I have read and agree to the PunchIn Email Worker Contributor License Agreement.
+
+<!-- Replace the line above with your own sign-off, or delete it and add it as a comment after opening the PR if you prefer. -->

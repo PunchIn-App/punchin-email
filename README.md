@@ -1,8 +1,8 @@
 # PunchIn Email Worker — Two-Way Alias Relay for trackmytime.today
 
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2D5BF5?style=flat)](LICENSE)
+[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-2D5BF5?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=2D5BF5)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.0-2D5BF5?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.6.1-2D5BF5?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -29,7 +29,7 @@ CLA → `cla@`, security → `cve@` (with `cve+<number>@` sub-addressing), condu
 | **Stack** | Cloudflare Email Workers + Workers KV + Email Sending binding. No framework, no build step, no database. |
 | **State** | Thread mappings live in KV with a 30-day TTL; admin-editable settings live in KV under `settings:v1`. Nothing is persisted beyond that. |
 | **Status** | Stable — v1.6.0. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for history. |
-| **License** | [Apache-2.0](LICENSE). Security policy: [`SECURITY.md`](SECURITY.md). |
+| **License** | [BUSL-1.1](LICENSE). Security policy: [`SECURITY.md`](SECURITY.md). |
 
 The design priority is **privacy and least surprise**: your personal inbox is
 never exposed to correspondents, every conversation stays under its public alias,
@@ -118,6 +118,7 @@ test/
   mocks/             stub for the `cloudflare:email` module
 docs/
   CHANGELOG.md       Keep a Changelog history
+  RELEASING.md       versioning rules + release procedure
 wrangler.toml        worker config + bindings
 CLAUDE.md            architecture guide
 ```
@@ -242,13 +243,15 @@ npm run deploy    # wrangler deploy
 ```
 
 Cutting a tagged release (tag → `gh release create vX.Y.Z` → deploy) is
-documented in [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md#cutting-a-release).
+documented in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Contributing
 
 Contributions are welcome. See [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)
-for the workflow, versioning, documentation, and testing requirements. There's no
-CLA — contributions are accepted under the project's Apache-2.0 license. This
+for the workflow, versioning, documentation, and testing requirements.
+Contributions require agreeing to the
+[Contributor License Agreement](.github/CLA.md) — you sign by including the
+sign-off line from the PR template in your pull request description. This
 project follows a [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Security
@@ -259,5 +262,11 @@ CVE is assigned) — see [SECURITY.md](SECURITY.md) for the full policy.
 
 ## License
 
-[Apache License 2.0](LICENSE) — free to use, modify, host, and redistribute
-(including commercially) with attribution. Includes an explicit patent grant.
+[Business Source License 1.1](LICENSE) — any individual may use, modify, and
+self-host the worker to relay role-address email for a domain they personally
+control, at no charge. Organizational use (a company, agency, or other legal
+entity deploying it as part of its internal tooling, mail infrastructure, or
+operations) requires a commercial license from PunchIn-App
+([licensing@trackmytime.today](mailto:licensing@trackmytime.today)). On the
+Change Date (2030-06-02) the license converts to the
+[GNU AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).
