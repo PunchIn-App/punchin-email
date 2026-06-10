@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.6.1] — 2026-06-10
+
+Admin-page font delivery + repo licensing/governance alignment with the main
+`punchin` repo. No change to mail handling; `PATCH`.
+
+### Changed
+
+- **Admin — no more Google Fonts CDN.** The Access-gated admin page no longer
+  loads Noto from `fonts.googleapis.com` / `fonts.gstatic.com` (project font
+  policy: self-hosted-or-system only — no third-party request from the page).
+  The Noto-first font stacks remain and now fall back to `system-ui` /
+  `ui-monospace` when Noto isn't installed locally.
+- **Licensing — Apache-2.0 → BUSL-1.1** with worker-adapted parameters
+  (individual self-hosting free; organizational use requires a commercial
+  license; converts to AGPL-3.0 on 2030-06-02), plus a ported Contributor
+  License Agreement (`.github/CLA.md`) and a `docs/RELEASING.md` companion
+  extracted from CONTRIBUTING. *(internal/governance — no behaviour change)*
+
+---
+
 ## [1.6.0] — 2026-06-08
 
 Adds a new role alias. A new alias category supported by the worker, so `MINOR`.
