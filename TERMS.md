@@ -148,8 +148,18 @@ not by these Terms:
   commercial licence, contact `licensing@trackmytime.today`.
 - **The email relay** ([`punchin-email`](https://github.com/PunchIn-App/punchin-email))
   and **the feedback service**
-  ([`punchin-feedback`](https://github.com/PunchIn-App/punchin-feedback)) are licensed
-  under the **Apache License 2.0**.
+  ([`punchin-feedback`](https://github.com/PunchIn-App/punchin-feedback)) are likewise
+  licensed under the **Business Source License 1.1 (BUSL-1.1)**. In short: **any
+  individual may self-host them at no charge** — the email relay for a domain they
+  personally control, and the feedback service for a project or repository they
+  personally control; **organisational deployment** (as part of a company's internal
+  tooling, mail or support infrastructure, or operations) requires a separate
+  commercial licence. Both convert to **GNU AGPL-3.0** on the same Change Date,
+  **2 June 2030**. The controlling Additional Use Grants are in each repository's
+  `LICENSE` file
+  ([email relay](https://github.com/PunchIn-App/punchin-email/blob/main/LICENSE),
+  [feedback service](https://github.com/PunchIn-App/punchin-feedback/blob/main/LICENSE));
+  for a commercial licence, contact `licensing@trackmytime.today`.
 
 If anything in these Terms appears to conflict with an applicable open-source licence as
 to your use of the *source code*, the open-source licence governs the code.
