@@ -102,10 +102,9 @@ function renderAdminPage() {
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0F1117">
 <title>PunchIn Email — Admin</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Display:wght@700;800&family=Noto+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* No CDN fonts (project font policy): the Noto families render when
+     installed locally; otherwise the system fallbacks below apply. */
   /* Design tokens from the PunchIn design system
      (punchin-design-system/project/colors_and_type.css — dark theme). */
   :root {
@@ -121,15 +120,15 @@ function renderAdminPage() {
   * { box-sizing: border-box; }
   body {
     margin:0; background:var(--bg-primary); color:var(--text-secondary);
-    font:15px/1.6 "Noto Sans", sans-serif;
+    font:15px/1.6 "Noto Sans", system-ui, sans-serif;
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   }
   .wrap { max-width:640px; margin:0 auto; padding:40px 20px; }
   .head { display:flex; align-items:center; gap:12px; margin:0 0 4px; }
   .mark { width:32px; height:32px; border-radius:8px; background:var(--accent); flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
-  h1 { font-family:"Noto Sans Display","Noto Sans",sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.02em; color:var(--text-primary); margin:0; }
+  h1 { font-family:"Noto Sans Display","Noto Sans",system-ui,sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.02em; color:var(--text-primary); margin:0; }
   .sub { color:var(--text-muted); margin:0 0 28px; font-size:13px; }
-  code { font-family:"Noto Sans Mono", monospace; font-size:.92em; color:var(--text-secondary); }
+  code { font-family:"Noto Sans Mono", ui-monospace, monospace; font-size:.92em; color:var(--text-secondary); }
   .card { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,.3); }
   label { display:block; font-weight:600; color:var(--text-primary); margin:20px 0 6px; }
   label:first-of-type { margin-top:0; }
@@ -140,7 +139,7 @@ function renderAdminPage() {
   }
   input::placeholder { color:var(--text-disabled); }
   input:focus { outline:none; border-color:rgb(var(--accent-rgb) / .6); box-shadow:0 0 0 2px rgb(var(--accent-rgb) / .5); }
-  .badge { display:inline-block; font-family:"Noto Sans Mono",monospace; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+  .badge { display:inline-block; font-family:"Noto Sans Mono",ui-monospace,monospace; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
   .badge.kv { background:rgb(var(--accent-rgb) / .15); color:var(--accent); }
   .badge.env { background:rgba(107,114,128,.18); color:var(--text-muted); }
   .row { display:flex; align-items:center; gap:14px; margin-top:28px; }
@@ -156,7 +155,7 @@ function renderAdminPage() {
   .status.err { color:var(--err); }
   .meta { color:var(--text-muted); font-size:12px; margin-top:24px; }
   .about { margin-top:20px; }
-  .about h2 { font-family:"Noto Sans Display","Noto Sans",sans-serif; font-weight:700; font-size:15px; color:var(--text-primary); margin:0 0 10px; }
+  .about h2 { font-family:"Noto Sans Display","Noto Sans",system-ui,sans-serif; font-weight:700; font-size:15px; color:var(--text-primary); margin:0 0 10px; }
   .about p { margin:0 0 12px; font-size:13px; color:var(--text-secondary); }
   .about p:last-of-type { margin-bottom:0; }
   .about dl { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin:0 0 14px; font-size:13px; }

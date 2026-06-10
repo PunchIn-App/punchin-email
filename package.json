@@ -2,6 +2,7 @@
   "name": "punchin-email",
   "version": "1.6.0",
   "private": true,
+  "license": "BUSL-1.1",
   "type": "module",
   "engines": {
     "node": ">=22"
