@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.6.2] — 2026-06-24
+
+Diagnostic-only improvement to thread records; no change to mail routing. `PATCH`.
+
+### Changed
+
+- **Thread records now record their last-relayed time.** Each successful relay
+  re-stamps the thread's KV record with a `lastRelayedAt` timestamp when it
+  refreshes the 30-day TTL. Previously the record only carried the creation
+  `timestamp`, so an operator inspecting a KV entry couldn't tell a thread used
+  once weeks ago from one active an hour ago. Routing reads only the alias and
+  original-sender fields, so this is purely an operator-visibility signal — no
+  behaviour change, and pre-existing records gain the field on their next relay
+  (no migration). (#75)
+
+---
+
 ## [1.6.1] — 2026-06-10
 
 Admin-page font delivery + repo licensing/governance alignment with the main

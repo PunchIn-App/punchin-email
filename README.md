@@ -2,7 +2,7 @@
 
 [![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-2D5BF5?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=2D5BF5)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.1-2D5BF5?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.6.2-2D5BF5?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -28,7 +28,7 @@ CLA → `cla@`, security → `cve@` (with `cve+<number>@` sub-addressing), condu
 | **For** | The `@trackmytime.today` contact addresses behind the [PunchIn](https://github.com/PunchIn-App/punchin) project's governance docs. Self-hostable for any domain on Cloudflare Email Routing. |
 | **Stack** | Cloudflare Email Workers + Workers KV + Email Sending binding. No framework, no build step, no database. |
 | **State** | Thread mappings live in KV with a 30-day TTL; admin-editable settings live in KV under `settings:v1`. Nothing is persisted beyond that. |
-| **Status** | Stable — v1.6.0. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for history. |
+| **Status** | Stable — v1.6.2. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for history. |
 | **License** | [BUSL-1.1](LICENSE). Security policy: [`SECURITY.md`](SECURITY.md). |
 
 The design priority is **privacy and least surprise**: your personal inbox is

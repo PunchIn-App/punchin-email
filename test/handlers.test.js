@@ -279,8 +279,41 @@ describe('handleRelay', () => {
     const refresh = env.EMAIL_THREADS.puts.find((p) => p.key === '0123456789abcdef');
     expect(refresh).toBeTruthy();
     expect(refresh.options.expirationTtl).toBe(THREAD_TTL_SECONDS);
-    // The mapping is re-stored verbatim — only the expiry is extended.
-    expect(JSON.parse(refresh.value).aliasEmail).toBe('cla@trackmytime.today');
+    // The record is re-stored with a fresh lastRelayedAt stamp; the routing
+    // fields are preserved unchanged (#75).
+    const refreshed = JSON.parse(refresh.value);
+    expect(refreshed.aliasEmail).toBe('cla@trackmytime.today');
+    expect(refreshed.originalSender).toBe('partner@corp.com');
+    expect(typeof refreshed.lastRelayedAt).toBe('number');
+  });
+
+  it('stamps lastRelayedAt on refresh so idle vs active threads are distinguishable (#75)', async () => {
+    const env = makeEnv();
+    const createdAt = Date.now() - 20 * 24 * 60 * 60 * 1000; // created 20 days ago
+    env.EMAIL_THREADS.store.set(
+      '0123456789abcdef',
+      JSON.stringify({
+        originalSender: 'partner@corp.com',
+        aliasEmail: 'cla@trackmytime.today',
+        timestamp: createdAt,
+      })
+    );
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: 'Subject: hi\r\n\r\nbody',
+    });
+
+    await handleRelay(msg, env);
+
+    const refresh = env.EMAIL_THREADS.puts.find((p) => p.key === '0123456789abcdef');
+    const refreshed = JSON.parse(refresh.value);
+    // Creation time stays frozen; lastRelayedAt reflects this relay (much later),
+    // giving operators a real idle-vs-active signal.
+    expect(refreshed.timestamp).toBe(createdAt);
+    expect(refreshed.lastRelayedAt).toBeGreaterThan(createdAt);
+    expect(refreshed.originalSender).toBe('partner@corp.com');
+    expect(refreshed.aliasEmail).toBe('cla@trackmytime.today');
   });
 
   it('still relays if the TTL refresh itself fails (best-effort) (#32)', async () => {
