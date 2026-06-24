@@ -1,6 +1,6 @@
 # PunchIn Email Worker — AI Assistant Guide
 
-**Version:** 1.6.1
+**Version:** 1.6.2
 
 This file is the architectural source of truth for the worker. Read it before
 making changes, and keep it current (see Documentation Requirements in
@@ -119,10 +119,14 @@ address / aliases / contact URL can change at runtime.
   behaviour, not a bug (issue #33).
 
 **Thread TTL.** Each mapping is stored with a 30-day TTL (`THREAD_TTL_SECONDS`). A
-successful relay **refreshes** that TTL (re-puts the record verbatim), so an
-actively used thread never ages out from under the participants while idle ones
-still expire 30 days after their last activity (issue #32). The refresh is
-best-effort — a failed refresh never fails the already-sent relay.
+successful relay **refreshes** that TTL, so an actively used thread never ages out
+from under the participants while idle ones still expire 30 days after their last
+activity (issue #32). The refresh re-writes the record with a fresh `lastRelayedAt`
+stamp (the original `timestamp` field is frozen at creation), so an operator
+inspecting a KV entry can distinguish an actively used thread from one idle since
+creation (issue #75); routing reads only `aliasEmail` / `originalSender`, so the
+added field is diagnostic-only and needs no migration. The refresh is best-effort —
+a failed refresh never fails the already-sent relay.
 
 **Error handling.** Permanent, non-retriable conditions (unknown alias, corrupt
 thread record, auto-submitted, malformed relay address) are rejected with

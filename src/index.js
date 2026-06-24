@@ -147,12 +147,17 @@ export async function handleRelay(message, env) {
 
   // Refresh the thread's TTL on each successful relay so an actively used thread
   // never ages out from under the participants; idle threads still expire 30
-  // days after their last activity (issue #32). Re-put the record verbatim —
-  // only the expiry is being extended. Best-effort: a refresh failure must not
-  // fail the already-sent relay (and trigger a retry that double-sends), so it
-  // is swallowed.
+  // days after their last activity (issue #32). The refresh also stamps
+  // `lastRelayedAt` so an operator inspecting the KV record can tell a thread
+  // active an hour ago from one idle since creation — the record's `timestamp`
+  // is frozen at creation and never moves (issue #75). Routing reads only
+  // `aliasEmail` / `originalSender`, so the added field is purely diagnostic and
+  // behaviour-neutral; pre-existing records gain it on their next successful
+  // relay (no migration). Best-effort: a refresh failure must not fail the
+  // already-sent relay (and trigger a retry that double-sends), so it is swallowed.
   try {
-    await env.EMAIL_THREADS.put(threadId, stored, { expirationTtl: THREAD_TTL_SECONDS });
+    const refreshed = JSON.stringify({ ...mapping, lastRelayedAt: Date.now() });
+    await env.EMAIL_THREADS.put(threadId, refreshed, { expirationTtl: THREAD_TTL_SECONDS });
   } catch {
     // ignore — the mapping simply keeps its prior expiry
   }
