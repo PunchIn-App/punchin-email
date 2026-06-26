@@ -15,7 +15,7 @@
     "check": "wrangler deploy --dry-run"
   },
   "devDependencies": {
-    "vitest": "^4.1.8",
-    "wrangler": "^4.98.0"
+    "vitest": "^4.1.9",
+    "wrangler": "^4.105.0"
   }
 }
