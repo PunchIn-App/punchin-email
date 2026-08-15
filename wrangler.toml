@@ -1,6 +1,17 @@
 name = "punchin-email"
 main = "src/index.js"
-compatibility_date = "2024-06-03"
+# Keep this current: it pins the runtime's behaviour and its bug fixes, and this
+# worker parses hostile MIME from the open internet. Matches the sibling PunchIn
+# workers. Re-check the flags history when moving it:
+# https://developers.cloudflare.com/workers/configuration/compatibility-flags/
+compatibility_date = "2026-06-06"
+
+# Workers Logs — keep the per-relay auth verdict / error-name logs (issue #34)
+# queryable in the dashboard instead of only via a live `wrangler tail`. Those
+# log lines are deliberately PII-free (verdict + authserv-id + error name only);
+# do not start logging addresses or bodies now that they are retained.
+[observability]
+enabled = true
 
 # FORWARD_TO is intentionally NOT defined here. It is the personal destination
 # inbox (PII) and the only address allowed to drive the relay, so it is kept out
