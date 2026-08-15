@@ -6,6 +6,17 @@ compatibility_date = "2024-06-03"
 # inbox (PII) and the only address allowed to drive the relay, so it is kept out
 # of version control and set as a secret instead:
 #     wrangler secret put FORWARD_TO
+#
+# ⚠️ PRECEDENCE: these are DEFAULTS ONLY — KV WINS.
+# ALLOWED_ALIASES, CONTACT_URL and the FORWARD_TO secret are the bootstrap values
+# used until the admin UI saves something. Once a field is saved it lives in the
+# `settings:v1` KV record, which `getSettings` layers OVER these vars with no
+# expiry — so editing a value here and redeploying changes NOTHING for that
+# field. Revoking an alias by deleting it below and redeploying will LOOK like it
+# worked while the KV copy keeps accepting mail for it.
+# To hand a field back to this file, clear it in the admin UI ("Reset to deploy
+# default", i.e. DELETE /api/settings/<field>); the badge next to the field shows
+# `saved` (KV) vs `default` (this file / secret).
 [vars]
 RELAY_DOMAIN    = "trackmytime.today"
 # Comma-separated base local-parts that are allowed to forward. Anything else

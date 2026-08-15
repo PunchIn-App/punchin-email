@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { handleAdminRequest } from '../src/admin.js';
-import { getSettings, SETTINGS_KEY } from '../src/settings.js';
+import { getSettings, updateSettings, SETTINGS_KEY } from '../src/settings.js';
 import { makeEnv } from './helpers.js';
 import pkg from '../package.json' with { type: 'json' };
 
@@ -107,6 +107,81 @@ describe('handleAdminRequest — PUT /api/settings', () => {
     });
     const res = await handleAdminRequest(bad, makeEnv(), 'admin@example.com');
     expect(res.status).toBe(400);
+  });
+});
+
+describe('handleAdminRequest — DELETE /api/settings/:field', () => {
+  it('clears the field from KV so the deploy default takes over', async () => {
+    const env = makeEnv();
+    await handleAdminRequest(
+      req('/api/settings', { method: 'PUT', origin: ORIGIN, body: { forwardTo: 'boss@example.com' } }),
+      env,
+      'admin@example.com'
+    );
+    expect((await getSettings(env)).source.forwardTo).toBe('kv');
+
+    const res = await handleAdminRequest(
+      req('/api/settings/forwardTo', { method: 'DELETE', origin: ORIGIN }),
+      env,
+      'admin@example.com'
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.settings.forwardTo).toBe('owner@example.com');
+    expect(json.settings.source.forwardTo).toBe('env');
+    expect((await getSettings(env)).forwardTo).toBe('owner@example.com');
+  });
+
+  it('blocks a cross-origin or Origin-less reset with 403', async () => {
+    const env = makeEnv();
+    await updateSettings(env, { forwardTo: 'boss@example.com' }, 'me');
+
+    const cross = await handleAdminRequest(
+      req('/api/settings/forwardTo', { method: 'DELETE', origin: 'https://evil.example' }),
+      env,
+      'admin@example.com'
+    );
+    expect(cross.status).toBe(403);
+
+    const bare = await handleAdminRequest(
+      req('/api/settings/forwardTo', { method: 'DELETE' }),
+      env,
+      'admin@example.com'
+    );
+    expect(bare.status).toBe(403);
+
+    // nothing was cleared
+    expect((await getSettings(env)).forwardTo).toBe('boss@example.com');
+  });
+
+  it('400s an unknown field', async () => {
+    const res = await handleAdminRequest(
+      req('/api/settings/relayDomain', { method: 'DELETE', origin: ORIGIN }),
+      makeEnv(),
+      'admin@example.com'
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Unknown setting/);
+  });
+
+  it('405s a non-DELETE method on the reset path', async () => {
+    const res = await handleAdminRequest(
+      req('/api/settings/forwardTo', { method: 'GET' }),
+      makeEnv(),
+      'admin@example.com'
+    );
+    expect(res.status).toBe(405);
+  });
+
+  it('wires a reset control into the admin page for every editable field', async () => {
+    // The API is only useful if the UI can reach it — and the existing
+    // source:'env' badge is otherwise unreachable once a value is saved.
+    const html = await (await handleAdminRequest(req('/'), makeEnv(), 'admin@example.com')).text();
+    for (const field of ['forwardTo', 'allowedAliases', 'contactUrl']) {
+      expect(html).toContain(`id="${field}Reset"`);
+    }
+    expect(html).toContain("method:'DELETE'");
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getSettings, updateSettings, SETTINGS_KEY } from '../src/settings.js';
+import { getSettings, updateSettings, resetSetting, SETTINGS_KEY } from '../src/settings.js';
 import { makeEnv } from './helpers.js';
 
 describe('getSettings', () => {
@@ -75,5 +75,63 @@ describe('updateSettings', () => {
     const env = makeEnv();
     await expect(updateSettings(env, { allowedAliases: 'cla,relay' }, 'me')).rejects.toThrow(/reserved/);
     await expect(updateSettings(env, { contactUrl: 'ftp://x.y' }, 'me')).rejects.toThrow(/http/);
+  });
+});
+
+describe('resetSetting', () => {
+  it('drops the field from KV so the deploy default takes over again', async () => {
+    const env = makeEnv();
+    await updateSettings(env, { forwardTo: 'saved@example.com' }, 'me');
+    expect((await getSettings(env)).source.forwardTo).toBe('kv');
+
+    const s = await resetSetting(env, 'forwardTo', 'admin@example.com');
+
+    expect(s.forwardTo).toBe('owner@example.com'); // back to the env/secret default
+    expect(s.source.forwardTo).toBe('env');
+    // and it is really gone from the stored record, not just shadowed
+    const stored = JSON.parse(env.EMAIL_THREADS.store.get(SETTINGS_KEY));
+    expect(Object.prototype.hasOwnProperty.call(stored, 'forwardTo')).toBe(false);
+  });
+
+  it('leaves the other saved fields alone and stamps who reset it', async () => {
+    const env = makeEnv();
+    await updateSettings(env, { forwardTo: 'saved@example.com', contactUrl: 'https://saved.example' }, 'me');
+
+    const s = await resetSetting(env, 'forwardTo', 'admin@example.com');
+
+    expect(s.contactUrl).toBe('https://saved.example');
+    expect(s.source.contactUrl).toBe('kv');
+    expect(s.updatedBy).toBe('admin@example.com');
+    expect(s.updatedAt).toBeTruthy();
+  });
+
+  it('un-shadows a revoked alias so a redeploy actually revokes it', async () => {
+    // The scenario the reset exists for: an alias list saved once in KV shadows
+    // wrangler.toml forever, so dropping an alias from [vars] and redeploying
+    // silently does nothing. Resetting the field makes the deploy value live.
+    const env = makeEnv();
+    await updateSettings(env, { allowedAliases: 'abuse,cla,privacy' }, 'me');
+    env.ALLOWED_ALIASES = 'abuse,cla'; // privacy@ revoked in the deploy config
+    expect((await getSettings(env)).allowedAliases).toBe('abuse,cla,privacy'); // KV still wins
+
+    const s = await resetSetting(env, 'allowedAliases', 'admin@example.com');
+
+    expect(s.allowedAliases).toBe('abuse,cla');
+    expect(s.source.allowedAliases).toBe('env');
+  });
+
+  it('is a no-op when the field was never saved', async () => {
+    const env = makeEnv();
+    const s = await resetSetting(env, 'contactUrl', 'admin@example.com');
+    expect(s.contactUrl).toBe('https://trackmytime.today');
+    expect(s.source.contactUrl).toBe('env');
+    expect(env.EMAIL_THREADS.puts).toHaveLength(0); // nothing to write
+  });
+
+  it('rejects a field that is not admin-editable', async () => {
+    const env = makeEnv();
+    await expect(resetSetting(env, 'relayDomain', 'me')).rejects.toThrow(/Unknown setting/);
+    await expect(resetSetting(env, 'updatedBy', 'me')).rejects.toThrow(/Unknown setting/);
+    await expect(resetSetting(env, '', 'me')).rejects.toThrow(/Unknown setting/);
   });
 });
