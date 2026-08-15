@@ -66,10 +66,19 @@ export async function handleInbound(message, env) {
   const fromHeader = inboundFromHeader(message.from, message.to);
 
   const rawText = await new Response(message.raw).text();
-  const rewritten = rewriteHeaders(rawText, fromHeader, settings.forwardTo, replyTo);
+  // The header `To` is the **alias**, not the owner's real forwarding address.
+  // The envelope (below) is what actually delivers the mail, so naming the
+  // inbox in the header buys nothing — and it leaks: this direction hands the
+  // owner a message whose body is passed through verbatim by the relay
+  // direction, so a client that quotes the original headers on reply (the
+  // Outlook/Exchange "From:/Sent:/To:" block) copies the inbox address into the
+  // body and ships it out to the original sender, straight past the alias
+  // masking. Gmail attributes by `From` and so never showed the leak.
+  const rewritten = rewriteHeaders(rawText, fromHeader, message.to, replyTo);
 
   // Envelope From is the bare alias (a verified RELAY_DOMAIN address); the
-  // display name lives only in the rewritten From header.
+  // display name lives only in the rewritten From header. Envelope To is the
+  // real inbox — that is what routes the message.
   await env.EMAIL_SENDING.send(new EmailMessage(message.to, settings.forwardTo, rewritten));
 }
 

@@ -30,11 +30,13 @@ describe('handleInbound', () => {
     expect(env.EMAIL_SENDING.sent).toHaveLength(1);
     const out = env.EMAIL_SENDING.sent[0];
     expect(out.from).toBe('cla@trackmytime.today'); // envelope from = the alias
-    expect(out.to).toBe('owner@example.com');
+    expect(out.to).toBe('owner@example.com'); // envelope recipient = the real inbox
 
     const [line1, line2, line3] = out.raw.split('\r\n');
     expect(line1).toBe('From: "partner@corp.com via PunchIn" <cla@trackmytime.today>');
-    expect(line2).toBe('To: owner@example.com');
+    // The *header* To is the alias, never the owner's real address — see the
+    // dedicated leak test below.
+    expect(line2).toBe('To: cla@trackmytime.today');
     expect(line3).toBe(`Reply-To: relay+${key}@trackmytime.today`);
 
     // The inbox owner's real address must not be exposed to the sender path, and
@@ -42,6 +44,29 @@ describe('handleInbound', () => {
     expect(out.raw).not.toContain('Reply-To: partner@corp.com');
     expect(out.raw).toContain('please look at this'); // body preserved
     expect(msg.calls.reject).toHaveLength(0);
+  });
+
+  it('keeps the owner inbox address out of the delivered copy entirely', async () => {
+    // The owner's real forwarding address used to be written into the `To:`
+    // header of the copy delivered to them. The relay direction rewrites
+    // headers but passes the body through verbatim, so a client that quotes
+    // the original headers on reply (Outlook/Exchange style "From:/Sent:/To:"
+    // blocks) copies that address back into the body — and out past the alias
+    // allowlist to the original sender. The envelope already routes the
+    // message, so the header carries the alias instead.
+    const env = makeEnv();
+    const msg = makeMessage({
+      from: 'partner@corp.com',
+      to: 'cla@trackmytime.today',
+      raw: inboundRaw(),
+    });
+
+    await handleInbound(msg, env);
+
+    const out = env.EMAIL_SENDING.sent[0];
+    expect(out.to).toBe('owner@example.com'); // envelope still delivers to the inbox
+    expect(out.raw).not.toContain('owner@example.com'); // …but the message body/headers never name it
+    expect(out.raw).toContain('To: cla@trackmytime.today');
   });
 
   it('preserves the +subaddress in both the stored alias and the From it sends as', async () => {
@@ -60,6 +85,8 @@ describe('handleInbound', () => {
     const out = env.EMAIL_SENDING.sent[0];
     expect(out.from).toBe('cve+report@trackmytime.today');
     expect(out.raw).toContain('From: "p@corp.com via PunchIn" <cve+report@trackmytime.today>');
+    // the header To mirrors the alias the sender wrote to, subaddress included
+    expect(out.raw).toContain('To: cve+report@trackmytime.today');
   });
 
   it('rejects unknown aliases and never sends or forwards', async () => {
