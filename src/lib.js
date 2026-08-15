@@ -168,10 +168,14 @@ const AUTH_RESULTS_HEADERS = new Set(['authentication-results', 'arc-authenticat
  * @returns {string[]} the raw header values, without the field name
  */
 function authResultsValues(rawText) {
-  const text = String(rawText || '').replace(/\r\n|\r|\n/g, '\r\n');
+  const text = String(rawText || '');
   if (!text) return [];
-  const splitIdx = text.indexOf('\r\n\r\n');
-  const headerBlock = splitIdx !== -1 ? text.slice(0, splitIdx) : text;
+  // Cut the header block off *before* normalizing line endings, so a 25 MB
+  // message body isn't rewritten just to read its headers. The delimiter is a
+  // blank line in any of the three conventions; the alternation is a linear
+  // scan with no backtracking.
+  const end = /\r\n\r\n|\n\n|\r\r/.exec(text);
+  const headerBlock = (end ? text.slice(0, end.index) : text).replace(/\r\n|\r|\n/g, '\r\n');
   const unfolded = headerBlock.replace(/\r\n[ \t]+/g, ' ');
 
   const values = [];

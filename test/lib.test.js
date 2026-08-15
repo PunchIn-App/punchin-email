@@ -475,6 +475,18 @@ describe('relayReplyAuthVerdict (#31)', () => {
     expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('pass');
   });
 
+  it('finds the header/body split under every line-ending convention', () => {
+    // The stamp must be read (and the body still excluded) whether the message
+    // separates lines with CRLF, LF or bare CR.
+    const stamp = cfArc('dmarc=pass header.from=gmail.com');
+    const forgedInBody = 'Authentication-Results: mx.cloudflare.net; dmarc=fail header.from=gmail.com';
+    for (const sep of ['\r\n\r\n', '\n\n', '\r\r']) {
+      expect(relayReplyAuthVerdict(stamp + sep + forgedInBody, 'gmail.com').verdict).toBe('pass');
+    }
+    // …and a message that is nothing but headers still parses
+    expect(relayReplyAuthVerdict(stamp, 'gmail.com').verdict).toBe('pass');
+  });
+
   it('honours an overridden trusted authserv-id list', () => {
     const m = rawMsg(['Authentication-Results: mx.example.test; dmarc=pass header.from=gmail.com']);
     expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('unknown');
