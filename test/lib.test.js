@@ -446,6 +446,29 @@ describe('relayReplyAuthVerdict (#31)', () => {
     expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
   });
 
+  // The three cases above pair an ARC-Authentication-Results with a plain
+  // Authentication-Results. Those are DIFFERENT header names, so a Headers
+  // object never joins them and they do not exercise the bug this section
+  // describes. These two do: same header name, two instances, which is the
+  // shape headers.get() collapses into one ', '-joined string.
+  const cfAr = (results) => `Authentication-Results: mx.cloudflare.net; ${results}`;
+  const genuineFailPlain = cfAr('dkim=pass header.d=attacker.com; dmarc=fail header.from=gmail.com; spf=fail smtp.mailfrom=bounce@attacker.com');
+
+  it('two instances of the SAME header cannot flip a genuine fail to a pass', () => {
+    const m = rawMsg([genuineFailPlain, 'Authentication-Results: evil.example; dmarc=pass header.from=gmail.com']);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
+  });
+
+  it('two instances of the SAME header, forged one first, still resolve to fail', () => {
+    const m = rawMsg(['Authentication-Results: evil.example; dmarc=pass header.from=gmail.com', genuineFailPlain]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
+  });
+
+  it('two SAME-name instances both bearing the trusted authserv-id resolve to fail when either fails', () => {
+    const m = rawMsg([genuineFailPlain, cfAr('dmarc=pass header.from=gmail.com')]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
+  });
+
   it('accepts a message whose only trusted instance passes, alongside untrusted ones', () => {
     const m = rawMsg([
       'Authentication-Results: mx.google.com; dmarc=fail header.from=gmail.com',
