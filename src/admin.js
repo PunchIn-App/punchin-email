@@ -236,7 +236,7 @@ function renderAdminPage() {
        aliases. Inbound mail to an accepted alias is forwarded to the address above;
        when you hit <strong>Reply</strong>, the response goes back out
        <strong>from the alias</strong> to the original sender — your inbox stays
-       private and no "From" picking is required.</p>
+       private, and you never have to pick a "From" address.</p>
     <dl>
       <dt>Version</dt><dd>v${VERSION}</dd>
       <dt>Relay domain</dt><dd><code id="relayDomain2"></code></dd>
