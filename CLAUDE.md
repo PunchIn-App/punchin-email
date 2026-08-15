@@ -157,7 +157,7 @@ otherwise), the dark-slate surface ramp, and the default accent **PunchIn Blue
 `#2D5BF5`** (`--accent` — the user-owned token the app repaints from; replaces the
 former `#1f6feb`). Card / input / button conventions follow the design system:
 white-on-accent primary button, `--radius` (11px) inputs, mono overline badges.
-The brand mark is the refreshed **stopwatch** (Lucide `Timer` + `Clock`, white ink)
+The brand mark is a **stopwatch** (Lucide `Timer` + `Clock`, white ink)
 on a rounded accent square, and the wordmark tints the capital **I** in "PunchIn"
 with `--accent`. The canonical tokens live in the `punchin-design-system` project
 (`project/colors_and_type.css`); keep this page consistent with it when editing.
