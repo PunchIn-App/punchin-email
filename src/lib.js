@@ -145,6 +145,46 @@ export function senderDomainOf(address) {
   return cut === -1 ? domain : domain.slice(0, cut);
 }
 
+// Header names whose values carry an authentication verdict.
+const AUTH_RESULTS_HEADERS = new Set(['authentication-results', 'arc-authentication-results']);
+
+/**
+ * Collect **every** Authentication-Results / ARC-Authentication-Results value
+ * from a raw RFC-822 message's header block, in document order.
+ *
+ * Why raw and not `message.headers`: a message may legitimately carry the same
+ * header more than once, and per the Fetch spec a `Headers` object joins the
+ * repeated instances into a single `', '`-separated string with no way to
+ * enumerate them (`getSetCookie` is the lone exception). Reading the joined
+ * value therefore mixes an attacker-appended header into the trusted MX's
+ * verdict — the authserv-id parses out of the first instance while a `pass`
+ * token can come from a later, forged one. Only the raw message keeps the
+ * instances apart.
+ *
+ * Body content is excluded (the split at the first empty line), and folded
+ * continuation lines are unfolded first, so neither a quoted stamp in the body
+ * nor a folded header can smuggle in a verdict.
+ * @param {string} rawText raw RFC-822 message (headers + body)
+ * @returns {string[]} the raw header values, without the field name
+ */
+function authResultsValues(rawText) {
+  const text = String(rawText || '').replace(/\r\n|\r|\n/g, '\r\n');
+  if (!text) return [];
+  const splitIdx = text.indexOf('\r\n\r\n');
+  const headerBlock = splitIdx !== -1 ? text.slice(0, splitIdx) : text;
+  const unfolded = headerBlock.replace(/\r\n[ \t]+/g, ' ');
+
+  const values = [];
+  for (const line of unfolded.split('\r\n')) {
+    const colon = line.indexOf(':');
+    if (colon === -1) continue;
+    if (AUTH_RESULTS_HEADERS.has(line.slice(0, colon).trim().toLowerCase())) {
+      values.push(line.slice(colon + 1));
+    }
+  }
+  return values;
+}
+
 // Split one Authentication-Results / ARC-Authentication-Results value into its
 // authserv-id and the remaining result text. ARC values lead with an `i=<n>;`
 // instance tag, which is stripped first.
@@ -194,31 +234,44 @@ function bodyShowsAlignedPass(body, dom) {
  *
  * Conservative and **fail-open**: we only act on a result set whose authserv-id
  * is one Cloudflare strip-protects (`TRUSTED_AUTHSERV_IDS`). A reply is `pass`
- * when that set shows `dmarc=pass` aligned to the sender domain (`header.from`)
- * or a `dkim=pass` whose `header.d` aligns; `fail` when the trusted set shows
- * neither; and `unknown` when no trusted set is present — in which case the
- * caller still relays, so legitimate mail is never bounced on a header we
- * didn't recognise.
+ * when **every** trusted set shows `dmarc=pass` aligned to the sender domain
+ * (`header.from`) or a `dkim=pass` whose `header.d` aligns; `fail` when any
+ * trusted set shows neither; and `unknown` when no trusted set is present — in
+ * which case the caller still relays, so legitimate mail is never bounced on a
+ * header we didn't recognise.
  *
- * @param {{get:(k:string)=>string|null}} headers
+ * Takes the **raw message**, not a `Headers` object: the header can appear more
+ * than once, `Headers` collapses repeated instances into one joined string, and
+ * a reader of that string can be walked from `fail` to `pass` by appending a
+ * second, forged instance (its authserv-id need not even be a trusted one).
+ * Parsing the raw header block keeps the instances separate; disagreement
+ * between trusted instances resolves to `fail`, never to the more permissive
+ * result. See `authResultsValues`.
+ *
+ * @param {string} rawMessage raw RFC-822 text of the inbound reply
  * @param {string} senderDomain the FORWARD_TO domain the reply must authenticate as
  * @param {string[]} [trusted] override the trusted authserv-id list (tests)
  * @returns {{ verdict: 'pass'|'fail'|'unknown', authservId: string|null }}
  */
-export function relayReplyAuthVerdict(headers, senderDomain, trusted = TRUSTED_AUTHSERV_IDS) {
-  const get = (k) => (headers && typeof headers.get === 'function' ? headers.get(k) : null);
+export function relayReplyAuthVerdict(rawMessage, senderDomain, trusted = TRUSTED_AUTHSERV_IDS) {
   const dom = String(senderDomain || '').toLowerCase();
   if (!dom) return { verdict: 'unknown', authservId: null };
 
-  const candidates = [get('Authentication-Results'), get('ARC-Authentication-Results')].filter(Boolean);
-  for (const value of candidates) {
+  let seenTrusted = null;
+  for (const value of authResultsValues(rawMessage)) {
     const parsed = parseAuthResultsValue(value);
     if (!parsed || !trusted.includes(parsed.authservId)) continue;
 
-    if (bodyShowsAlignedPass(parsed.body, dom)) return { verdict: 'pass', authservId: parsed.authservId };
-    return { verdict: 'fail', authservId: parsed.authservId };
+    // A trusted set that does not show an aligned pass settles it: fail. Later
+    // sets (forged or not) cannot upgrade that verdict.
+    if (!bodyShowsAlignedPass(parsed.body, dom)) {
+      return { verdict: 'fail', authservId: parsed.authservId };
+    }
+    seenTrusted = parsed.authservId;
   }
-  return { verdict: 'unknown', authservId: null };
+  return seenTrusted
+    ? { verdict: 'pass', authservId: seenTrusted }
+    : { verdict: 'unknown', authservId: null };
 }
 
 // --- Validation helpers for the admin settings API -------------------------

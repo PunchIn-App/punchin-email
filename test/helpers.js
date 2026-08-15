@@ -53,16 +53,29 @@ export function makeKV(initial = {}) {
   };
 }
 
-/** Build a fake inbound/relay EmailMessage. */
+/**
+ * Build a fake inbound/relay EmailMessage.
+ *
+ * `headers` models what the runtime hands the worker: a real Fetch `Headers`
+ * object, not a Map. That distinction is load-bearing — a message can carry the
+ * *same* header more than once (an attacker appending a second
+ * `Authentication-Results`), and per the Fetch spec `Headers` joins repeated
+ * instances into one `', '`-separated string with no way to enumerate them. A
+ * Map-backed double silently collapses duplicates to the last value and so
+ * cannot express that case at all. Pass an array to append several instances:
+ *   headers: { 'Authentication-Results': ['mx.cloudflare.net; …', 'evil; …'] }
+ * Anything that must reason about individual instances has to parse `raw`.
+ */
 export function makeMessage({ from, to, headers = {}, raw = '' } = {}) {
-  const headerMap = new Map(
-    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])
-  );
+  const h = new Headers();
+  for (const [k, v] of Object.entries(headers)) {
+    for (const one of Array.isArray(v) ? v : [v]) h.append(k, one);
+  }
   const calls = { forward: [], reject: [] };
   return {
     from,
     to,
-    headers: { get: (k) => (headerMap.has(k.toLowerCase()) ? headerMap.get(k.toLowerCase()) : null) },
+    headers: h,
     raw: new Response(raw).body,
     forward(dest, h) {
       calls.forward.push({ dest, headers: h });

@@ -16,11 +16,12 @@ import {
   normalizeContactUrl,
 } from '../src/lib.js';
 
-// Build a headers double like makeMessage's: case-insensitive .get().
-const hdrs = (obj) => {
-  const m = new Map(Object.entries(obj).map(([k, v]) => [k.toLowerCase(), v]));
-  return { get: (k) => (m.has(k.toLowerCase()) ? m.get(k.toLowerCase()) : null) };
-};
+// Build a raw RFC-822 message from explicit header *lines* plus a body. Header
+// instances are individually expressible here (a `Headers` object cannot
+// represent duplicates — the Fetch spec joins them with ', ' — which is exactly
+// why the auth verdict is parsed out of the raw message).
+const rawMsg = (headerLines, body = 'the reply body') =>
+  [...headerLines, '', body].join('\r\n');
 
 describe('generateId', () => {
   it('produces a 16-char lowercase hex string', () => {
@@ -365,53 +366,118 @@ describe('senderDomainOf', () => {
 });
 
 describe('relayReplyAuthVerdict (#31)', () => {
-  // A realistic Cloudflare ARC-Authentication-Results stamp.
-  const cfArc = (results) => ({ 'ARC-Authentication-Results': `i=1; mx.cloudflare.net; ${results}` });
+  // A realistic Cloudflare ARC-Authentication-Results stamp, as a header line.
+  const cfArc = (results) => `ARC-Authentication-Results: i=1; mx.cloudflare.net; ${results}`;
 
   it('passes a DMARC-aligned reply from the sender domain', () => {
-    const h = hdrs(cfArc('dkim=pass header.d=gmail.com header.s=x header.b=y; dmarc=pass header.from=gmail.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@gmail.com'));
-    expect(relayReplyAuthVerdict(h, 'gmail.com')).toEqual({ verdict: 'pass', authservId: 'mx.cloudflare.net' });
+    const m = rawMsg([cfArc('dkim=pass header.d=gmail.com header.s=x header.b=y; dmarc=pass header.from=gmail.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@gmail.com')]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com')).toEqual({ verdict: 'pass', authservId: 'mx.cloudflare.net' });
   });
 
   it('passes on an aligned DKIM signature even without a dmarc=pass token', () => {
-    const h = hdrs(cfArc('dkim=pass header.d=gmail.com header.s=x; spf=pass smtp.mailfrom=owner@gmail.com'));
-    expect(relayReplyAuthVerdict(h, 'gmail.com').verdict).toBe('pass');
+    const m = rawMsg([cfArc('dkim=pass header.d=gmail.com header.s=x; spf=pass smtp.mailfrom=owner@gmail.com')]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('pass');
   });
 
   it('passes a DKIM signature from a subdomain of the sender domain', () => {
-    const h = hdrs(cfArc('dkim=pass header.d=mail.example.com; spf=pass'));
-    expect(relayReplyAuthVerdict(h, 'example.com').verdict).toBe('pass');
+    const m = rawMsg([cfArc('dkim=pass header.d=mail.example.com; spf=pass')]);
+    expect(relayReplyAuthVerdict(m, 'example.com').verdict).toBe('pass');
   });
 
   it('fails a reply that did not authenticate as the sender domain (spoof)', () => {
     // From claims gmail.com but only attacker.com authenticated → dmarc fails.
-    const h = hdrs(cfArc('dkim=pass header.d=attacker.com header.s=x; dmarc=fail header.from=gmail.com; spf=pass smtp.mailfrom=bounce@attacker.com'));
-    expect(relayReplyAuthVerdict(h, 'gmail.com')).toEqual({ verdict: 'fail', authservId: 'mx.cloudflare.net' });
+    const m = rawMsg([cfArc('dkim=pass header.d=attacker.com header.s=x; dmarc=fail header.from=gmail.com; spf=pass smtp.mailfrom=bounce@attacker.com')]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com')).toEqual({ verdict: 'fail', authservId: 'mx.cloudflare.net' });
   });
 
   it('returns unknown (fail-open) when no auth-results header is present', () => {
-    expect(relayReplyAuthVerdict(hdrs({}), 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
+    expect(relayReplyAuthVerdict(rawMsg(['Subject: hi']), 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
+    expect(relayReplyAuthVerdict('', 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
+    expect(relayReplyAuthVerdict(undefined, 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
   });
 
   it('ignores an auth-results set from an untrusted authserv-id (forgery-resistant)', () => {
     // A sender-forged header under some other authserv-id Cloudflare does not
     // strip must not be trusted, even though it claims a pass.
-    const h = hdrs({ 'Authentication-Results': 'evil.example; dmarc=pass header.from=gmail.com' });
-    expect(relayReplyAuthVerdict(h, 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
+    const m = rawMsg(['Authentication-Results: evil.example; dmarc=pass header.from=gmail.com']);
+    expect(relayReplyAuthVerdict(m, 'gmail.com')).toEqual({ verdict: 'unknown', authservId: null });
   });
 
   it('reads a plain Authentication-Results stamped by the trusted MX', () => {
-    const h = hdrs({ 'Authentication-Results': 'mx.cloudflare.net; dmarc=pass header.from=gmail.com; spf=pass' });
-    expect(relayReplyAuthVerdict(h, 'gmail.com').verdict).toBe('pass');
+    const m = rawMsg(['Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=gmail.com; spf=pass']);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('pass');
   });
 
   it('does not let a pass for a different From domain count', () => {
-    const h = hdrs(cfArc('dmarc=pass header.from=elsewhere.com; spf=pass'));
-    expect(relayReplyAuthVerdict(h, 'gmail.com').verdict).toBe('fail');
+    const m = rawMsg([cfArc('dmarc=pass header.from=elsewhere.com; spf=pass')]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
   });
 
   it('returns unknown when the sender domain is empty', () => {
-    const h = hdrs(cfArc('dmarc=pass header.from=gmail.com'));
-    expect(relayReplyAuthVerdict(h, '').verdict).toBe('unknown');
+    const m = rawMsg([cfArc('dmarc=pass header.from=gmail.com')]);
+    expect(relayReplyAuthVerdict(m, '').verdict).toBe('unknown');
+  });
+
+  // --- multi-instance spoof: the header can appear more than once -----------
+  //
+  // A `Headers` object joins repeated instances with ', ', so a reader that
+  // takes the authserv-id from the first segment but accepts a `pass` from any
+  // segment can be flipped from fail to pass by appending a second header. The
+  // verdict is therefore parsed from the raw header block, where each instance
+  // is separate, and *every* trusted instance must show an aligned pass.
+
+  const genuineFail = cfArc('dkim=pass header.d=attacker.com; dmarc=fail header.from=gmail.com; spf=fail smtp.mailfrom=bounce@attacker.com');
+
+  it('a forged second header cannot flip a genuine fail to a pass', () => {
+    const m = rawMsg([genuineFail, 'Authentication-Results: evil.example; dmarc=pass header.from=gmail.com']);
+    expect(relayReplyAuthVerdict(m, 'gmail.com')).toEqual({ verdict: 'fail', authservId: 'mx.cloudflare.net' });
+  });
+
+  it('a forged second header cannot flip the verdict when it is listed first', () => {
+    const m = rawMsg(['Authentication-Results: evil.example; dmarc=pass header.from=gmail.com', genuineFail]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
+  });
+
+  it('a forged second header reusing the trusted authserv-id cannot flip a genuine fail', () => {
+    // Cloudflare strips an inbound copy bearing its own authserv-id (RFC 8601
+    // §5), but if one ever survived, a disagreeing pair must resolve to fail —
+    // never to the more permissive of the two.
+    const m = rawMsg([genuineFail, 'Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=gmail.com']);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('fail');
+  });
+
+  it('accepts a message whose only trusted instance passes, alongside untrusted ones', () => {
+    const m = rawMsg([
+      'Authentication-Results: mx.google.com; dmarc=fail header.from=gmail.com',
+      cfArc('dmarc=pass header.from=gmail.com; spf=pass'),
+    ]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('pass');
+  });
+
+  it('ignores an Authentication-Results line that only appears in the body', () => {
+    // Body content is attacker-supplied text, not a header — quoting a fake
+    // stamp into the message must not influence the verdict.
+    const m = rawMsg(['Subject: hi'], 'Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=gmail.com');
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('unknown');
+  });
+
+  it('unfolds a continuation line before parsing the stamp', () => {
+    const m = rawMsg([
+      'ARC-Authentication-Results: i=1; mx.cloudflare.net;',
+      '\tdmarc=pass header.from=gmail.com;',
+      ' spf=pass smtp.mailfrom=owner@gmail.com',
+    ]);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('pass');
+  });
+
+  it('parses a bare-LF message the same as a CRLF one (#37)', () => {
+    const m = [cfArc('dmarc=pass header.from=gmail.com'), '', 'body'].join('\n');
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('pass');
+  });
+
+  it('honours an overridden trusted authserv-id list', () => {
+    const m = rawMsg(['Authentication-Results: mx.example.test; dmarc=pass header.from=gmail.com']);
+    expect(relayReplyAuthVerdict(m, 'gmail.com').verdict).toBe('unknown');
+    expect(relayReplyAuthVerdict(m, 'gmail.com', ['mx.example.test']).verdict).toBe('pass');
   });
 });

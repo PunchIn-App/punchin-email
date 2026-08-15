@@ -92,6 +92,14 @@ export async function handleRelay(message, env) {
     return;
   }
 
+  // Read the raw message up front: `message.raw` is a stream that can only be
+  // consumed once, and both the auth verdict below and the outbound rewrite
+  // need it. The verdict must come from the raw text rather than
+  // `message.headers` because a `Headers` object joins repeated instances of a
+  // header into one string, letting an appended, forged Authentication-Results
+  // launder a genuine `fail` into a `pass` (see relayReplyAuthVerdict).
+  const rawText = await new Response(message.raw).text();
+
   // Defence-in-depth on the From == FORWARD_TO gate (issue #31): that gate trusts
   // the unauthenticated header sender, so additionally consult the SPF/DKIM/DMARC
   // verdict our receiving MX (Cloudflare) stamped on the reply and refuse to
@@ -101,7 +109,7 @@ export async function handleRelay(message, env) {
   // format we don't recognise never bounces legitimate mail. Log only the
   // verdict + authserv-id (never addresses/body) so the exact Cloudflare header
   // can be confirmed from `wrangler tail` (issue #34).
-  const auth = relayReplyAuthVerdict(message.headers, senderDomainOf(settings.forwardTo));
+  const auth = relayReplyAuthVerdict(rawText, senderDomainOf(settings.forwardTo));
   console.log('punchin-email: relay auth verdict:', auth.verdict, auth.authservId || '(none)');
   if (auth.verdict === 'fail') {
     message.setReject('Relay reply failed sender authentication');
@@ -139,7 +147,6 @@ export async function handleRelay(message, env) {
   }
   const { aliasEmail, originalSender } = mapping;
 
-  const rawText = await new Response(message.raw).text();
   const rewritten = rewriteHeaders(rawText, aliasEmail, originalSender);
 
   const outbound = new EmailMessage(aliasEmail, originalSender, rewritten);

@@ -179,17 +179,28 @@ describe('handleRelay', () => {
     expect(env.EMAIL_SENDING.sent).toHaveLength(0);
   });
 
+  // Cloudflare stamps its verdict as a header *on the message*, so these tests
+  // put it in `raw` (where individual instances are distinguishable) rather
+  // than only in the Headers double.
+  const relayRaw = (authLines = []) =>
+    [
+      'From: owner@example.com',
+      'To: relay+0123456789abcdef@trackmytime.today',
+      ...authLines,
+      'Subject: Re: hi',
+      '',
+      'body',
+    ].join('\r\n');
+
   it('relays a reply that authenticated as the FORWARD_TO domain (#31)', async () => {
     const env = makeEnv(); // FORWARD_TO = owner@example.com
     setupThread(env);
     const msg = makeMessage({
       from: 'owner@example.com',
       to: 'relay+0123456789abcdef@trackmytime.today',
-      headers: {
-        'ARC-Authentication-Results':
-          'i=1; mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1; dmarc=pass header.from=example.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@example.com',
-      },
-      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      raw: relayRaw([
+        'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1; dmarc=pass header.from=example.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@example.com',
+      ]),
     });
 
     await handleRelay(msg, env);
@@ -206,11 +217,32 @@ describe('handleRelay', () => {
     const msg = makeMessage({
       from: 'owner@example.com',
       to: 'relay+0123456789abcdef@trackmytime.today',
-      headers: {
-        'ARC-Authentication-Results':
-          'i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com header.s=s1; dmarc=fail header.from=example.com; spf=pass smtp.mailfrom=bounce@attacker.com',
-      },
-      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      raw: relayRaw([
+        'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com header.s=s1; dmarc=fail header.from=example.com; spf=pass smtp.mailfrom=bounce@attacker.com',
+      ]),
+    });
+
+    await handleRelay(msg, env);
+
+    expect(msg.calls.reject).toEqual(['Relay reply failed sender authentication']);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
+  });
+
+  it('cannot be flipped to a pass by appending a second auth-results header', async () => {
+    // The genuine Cloudflare stamp says fail. A `Headers` object joins repeated
+    // instances with ', ', so a reader that takes the authserv-id from the
+    // first segment and a pass from any segment would relay this — a full
+    // spoofing bypass of the #31 guard. It must still be rejected.
+    const env = makeEnv();
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: relayRaw([
+        'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com; dmarc=fail header.from=example.com; spf=fail',
+        // forged by the sender — any authserv-id, no need to reuse the trusted one
+        'Authentication-Results: evil.example; dmarc=pass header.from=example.com',
+      ]),
     });
 
     await handleRelay(msg, env);
@@ -227,8 +259,7 @@ describe('handleRelay', () => {
     const msg = makeMessage({
       from: 'owner@example.com',
       to: 'relay+0123456789abcdef@trackmytime.today',
-      headers: { 'ARC-Authentication-Results': 'i=1; some-other-mx.example; dmarc=pass header.from=example.com' },
-      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      raw: relayRaw(['ARC-Authentication-Results: i=1; some-other-mx.example; dmarc=pass header.from=example.com']),
     });
 
     await handleRelay(msg, env);
