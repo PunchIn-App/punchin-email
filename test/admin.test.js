@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { handleAdminRequest } from '../src/admin.js';
 import { getSettings, SETTINGS_KEY } from '../src/settings.js';
 import { makeEnv } from './helpers.js';
+import pkg from '../package.json' with { type: 'json' };
 
 const ORIGIN = 'https://punchin-email.example.workers.dev';
 
@@ -22,6 +23,13 @@ describe('handleAdminRequest — page', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/html/);
     expect(await res.text()).toContain('PunchIn Email');
+  });
+
+  it('shows the version from package.json, not a hand-maintained copy', async () => {
+    // A duplicated constant drifts silently (it read 1.6.0 on a 1.6.2 worker),
+    // and this page is the only place an operator sees which build is live.
+    const res = await handleAdminRequest(req('/'), makeEnv(), 'admin@example.com');
+    expect(await res.text()).toContain(`<dd>v${pkg.version}</dd>`);
   });
 });
 

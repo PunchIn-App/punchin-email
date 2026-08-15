@@ -3,11 +3,14 @@
 // caller is already an authenticated admin (identity is passed in).
 
 import { getSettings, updateSettings } from './settings.js';
+import pkg from '../package.json' with { type: 'json' };
 
 const EDITABLE_FIELDS = ['forwardTo', 'allowedAliases', 'contactUrl'];
 
-// Kept in sync with package.json / CLAUDE.md on each behaviour change.
-const VERSION = '1.6.0';
+// Read from package.json, never hand-copied: a duplicated constant drifts (it
+// sat at 1.6.0 on a 1.6.2 worker) and this page is where an operator checks
+// which build is live. The bundler inlines the import at build time.
+const VERSION = pkg.version;
 const REPO_URL = 'https://github.com/PunchIn-App/punchin-email';
 
 function jsonResponse(obj, status = 200) {
