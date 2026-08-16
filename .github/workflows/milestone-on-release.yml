@@ -10,11 +10,13 @@
 #
 # "No milestone" then means "merged since the last minor/major release", because
 # that release already milestoned everything up to its point. The sweep is
-# additionally BOUNDED to PRs merged after the previous MINOR/MAJOR release's tag
-# commit, so a one-time un-milestoned backlog (e.g. releases published before
-# this workflow existed) can't all land in whichever release fires it first. The
-# bound uses the tag's *commit* date, not the release publish time, which can be
-# backfilled/batched and isn't a reliable boundary.
+# additionally BOUNDED AT BOTH ENDS — to PRs merged after the previous
+# MINOR/MAJOR release's tag commit and at or before THIS release's tag commit —
+# so a one-time un-milestoned backlog (e.g. releases published before this
+# workflow existed, or backfilled out of order) can neither all land in
+# whichever release fires it first, nor drag later work into an older
+# milestone. Both bounds use the tag's *commit* date, not the release publish
+# time, which can be backfilled/batched and isn't a reliable boundary.
 #
 # Runs under ADD_TO_PROJECT_PAT (the default GITHUB_TOKEN is kept read-only). The
 # PAT must grant Issues: read/write (create milestone + assign) and Contents:
@@ -27,9 +29,19 @@ on:
 
 permissions: {}
 
+# Serialize per release tag, and NEVER cancel: this workflow creates a milestone
+# and then writes it onto N pull requests. A cancelled run leaves that sweep
+# half-applied, which the next run cannot detect (the PRs it already touched no
+# longer match `no:milestone`). Queue instead.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
 jobs:
   milestone:
     runs-on: ubuntu-latest
+    # Paginating releases + search and updating each PR; minutes at worst.
+    timeout-minutes: 15
     steps:
       - uses: actions/github-script@v9
         with:
@@ -66,10 +78,21 @@ jobs:
             }
             if (!ms) { core.setFailed('Could not create or find the milestone'); return; }
 
-            // Boundary = the previous MINOR/MAJOR release (the last milestone-bearing
-            // one), resolved to its tag *commit* date. Bounding to the previous patch
-            // tag would drop the intervening patch PRs; the previous minor/major sweeps
-            // them all in. Publish times can be batched/backfilled — use the commit date.
+            // Resolve a tag to the *commit* date it points at (annotated or lightweight).
+            // Publish times can be batched/backfilled — the commit date is the only
+            // stable boundary, so both ends of the sweep window use it.
+            const tagCommitDate = async (tagName) => {
+              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tagName}` });
+              let sha = ref.data.object.sha;
+              if (ref.data.object.type === 'tag') {
+                sha = (await github.rest.git.getTag({ owner, repo, tag_sha: sha })).data.object.sha;
+              }
+              return (await github.rest.git.getCommit({ owner, repo, commit_sha: sha })).data.committer.date;
+            };
+
+            // Lower bound = the previous MINOR/MAJOR release (the last milestone-bearing
+            // one). Bounding to the previous patch tag would drop the intervening patch
+            // PRs; the previous minor/major sweeps them all in.
             const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
             const thisPub = new Date(rel.published_at || Date.now());
             const prev = releases
@@ -79,20 +102,28 @@ jobs:
             let since = null;
             if (prev) {
               try {
-                const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${prev.tag_name}` });
-                let sha = ref.data.object.sha;
-                if (ref.data.object.type === 'tag') {
-                  sha = (await github.rest.git.getTag({ owner, repo, tag_sha: sha })).data.object.sha;
-                }
-                since = (await github.rest.git.getCommit({ owner, repo, commit_sha: sha })).data.committer.date;
+                since = await tagCommitDate(prev.tag_name);
               } catch (e) { core.warning(`prev-tag date (${prev.tag_name}): ${e.message}`); }
             }
 
-            // Assign every merged PR with no milestone, BOUNDED to "since the previous
-            // minor/major release" so a backlog can't all land in one milestone.
-            const q = since
-              ? `repo:${owner}/${repo} is:pr is:merged no:milestone merged:>${since}`
-              : `repo:${owner}/${repo} is:pr is:merged no:milestone`;
+            // UPPER bound = THIS release's own tag commit. Without it the sweep is
+            // open-ended and every PR merged AFTER this tag (i.e. work belonging to a
+            // later release) is dragged into this milestone — which is exactly what
+            // happens when older releases are published/backfilled out of order. If the
+            // tag can't be resolved we fail rather than sweep unbounded: a wrongly
+            // milestoned backlog is tedious to undo, a failed job is a re-run.
+            let until = null;
+            try {
+              until = await tagCommitDate(tag);
+            } catch (e) {
+              core.setFailed(`Could not resolve the commit date of ${tag} (${e.message}); refusing to sweep with no upper bound.`);
+              return;
+            }
+
+            // Assign every merged PR with no milestone, BOUNDED to the window
+            // (previous minor/major tag commit, this tag commit]. `*` is GitHub search's
+            // open-ended range marker, used when there is no earlier minor/major release.
+            const q = `repo:${owner}/${repo} is:pr is:merged no:milestone merged:${since || '*'}..${until}`;
             const prs = await github.paginate(github.rest.search.issuesAndPullRequests, { q, per_page: 100 });
             let n = 0;
             for (const pr of prs) {

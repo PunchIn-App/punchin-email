@@ -19,9 +19,19 @@ on:
 
 permissions: {}
 
+# Serialize per board item and NEVER cancel: this workflow does a sequence of
+# partial, non-idempotent writes to the project board (add item, then set fields).
+# A cancelled run leaves the item half-populated and the next event cannot tell,
+# because the item already exists. Queue instead.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   automate:
     runs-on: ubuntu-latest
+    # A handful of GraphQL calls; 10 is a generous backstop.
+    timeout-minutes: 10
     # Skip fork PRs (no secrets) and Dependabot (no secrets passed to its events).
     if: ${{ (github.event_name == 'issues' || github.event.pull_request.head.repo.fork == false) && github.actor != 'dependabot[bot]' }}
     steps:

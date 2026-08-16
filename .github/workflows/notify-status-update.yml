@@ -13,9 +13,18 @@ on:
 
 permissions: {}
 
+# Serialize per release and NEVER cancel: a cancelled run silently drops the
+# repository_dispatch, and nothing retries it — the status update just never
+# happens. Queue instead.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   relay:
     runs-on: ubuntu-latest
+    # A single repository_dispatch; 10 is a generous backstop.
+    timeout-minutes: 10
     steps:
       - uses: actions/github-script@v9
         with:
