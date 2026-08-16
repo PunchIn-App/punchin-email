@@ -5,6 +5,55 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.0] — 2026-08-16
+
+Security fix to inbound reply authentication, plus an operator reset path for
+KV-shadowed settings. `MINOR`.
+
+### Security
+
+- **A forged second `Authentication-Results` header could flip a failed reply
+  authentication to a pass.** The verdict was read with `headers.get()`, and per
+  the Fetch specification a `Headers` object joins repeated headers into one
+  comma-separated string. The reader took the authserv-id from the first segment
+  but accepted a `pass` from any segment, so appending a second header to a
+  message whose real verdict was `fail` produced `pass`, and the relay completed
+  the send. The verdict is now parsed out of the raw message, where each instance
+  stays separate, and **every** instance bearing the trusted authserv-id must
+  show an aligned pass. Note the forged header did not need to reuse
+  `mx.cloudflare.net`, so stripping by authserv-id under RFC 8601 §5 would not
+  have closed this.
+
+### Fixed
+
+- **The owner's real inbox address no longer appears in the `To:` header** of the
+  copy delivered to the owner. The relay direction rewrote headers but passed the
+  body through verbatim, so a quoting mail client could carry that address back
+  out past the alias allowlist on reply. `To:` is now the alias; the envelope
+  already routed the message correctly, so delivery is unchanged.
+- **The admin page reported the wrong version.** It carried a hardcoded `1.6.0`
+  on a `1.6.2` Worker; it now reads `package.json`, so it cannot drift again.
+
+### Added
+
+- **Per-field reset for KV-stored settings.** The `settings:v1` KV record shadows
+  the `wrangler.toml` `[vars]` defaults permanently, and the admin API exposed
+  only GET and PUT — so once a field was in KV, changing the deploy default and
+  redeploying silently did nothing. Revoking an email alias that way appeared to
+  work and did not. Each field can now be reset, which deletes it from KV and
+  hands control back to the deploy default (surfacing the `source: env` badge the
+  admin UI already renders).
+
+### Changed
+
+- **`compatibility_date` moved from 2024-06-03 to 2026-06-06.** It was roughly 26
+  months stale on the component that parses untrusted MIME.
+- **Workers Logs observability enabled**, so the per-relay authentication verdict
+  this Worker already logs is retained rather than existing only while a
+  `wrangler tail` is attached.
+
+---
+
 ## [1.6.2] — 2026-06-24
 
 Diagnostic-only improvement to thread records; no change to mail routing. `PATCH`.

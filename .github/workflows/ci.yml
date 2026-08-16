@@ -9,9 +9,20 @@ on:
 permissions:
   contents: read
 
+# One run per PR (or per branch on push): a rapid series of pushes to the same PR
+# cancels its own superseded runs instead of queueing them all. Only the newest
+# commit's result is meaningful for a merge decision, and nothing here deploys or
+# publishes, so cancelling mid-run is safe.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Install + the Worker suite is well under a minute; 15 is a backstop
+    # against a hung run burning the full 6-hour default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 

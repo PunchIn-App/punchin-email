@@ -1,11 +1,33 @@
 name = "punchin-email"
 main = "src/index.js"
-compatibility_date = "2024-06-03"
+# Keep this current: it pins the runtime's behaviour and its bug fixes, and this
+# worker parses hostile MIME from the open internet. Matches the sibling PunchIn
+# workers. Re-check the flags history when moving it:
+# https://developers.cloudflare.com/workers/configuration/compatibility-flags/
+compatibility_date = "2026-06-06"
+
+# Workers Logs — keep the per-relay auth verdict / error-name logs (issue #34)
+# queryable in the dashboard instead of only via a live `wrangler tail`. Those
+# log lines are deliberately PII-free (verdict + authserv-id + error name only);
+# do not start logging addresses or bodies now that they are retained.
+[observability]
+enabled = true
 
 # FORWARD_TO is intentionally NOT defined here. It is the personal destination
 # inbox (PII) and the only address allowed to drive the relay, so it is kept out
 # of version control and set as a secret instead:
 #     wrangler secret put FORWARD_TO
+#
+# ⚠️ PRECEDENCE: these are DEFAULTS ONLY — KV WINS.
+# ALLOWED_ALIASES, CONTACT_URL and the FORWARD_TO secret are the bootstrap values
+# used until the admin UI saves something. Once a field is saved it lives in the
+# `settings:v1` KV record, which `getSettings` layers OVER these vars with no
+# expiry — so editing a value here and redeploying changes NOTHING for that
+# field. Revoking an alias by deleting it below and redeploying will LOOK like it
+# worked while the KV copy keeps accepting mail for it.
+# To hand a field back to this file, clear it in the admin UI ("Reset to deploy
+# default", i.e. DELETE /api/settings/<field>); the badge next to the field shows
+# `saved` (KV) vs `default` (this file / secret).
 [vars]
 RELAY_DOMAIN    = "trackmytime.today"
 # Comma-separated base local-parts that are allowed to forward. Anything else

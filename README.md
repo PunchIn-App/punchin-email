@@ -2,7 +2,7 @@
 
 [![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-2D5BF5?style=flat)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PunchIn-App/punchin-email/ci.yml?branch=main&style=flat&label=CI&color=2D5BF5)](https://github.com/PunchIn-App/punchin-email/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.2-2D5BF5?style=flat)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.0-2D5BF5?style=flat)](docs/CHANGELOG.md)
 
 > Role-address email that replies as itself — mail to an alias forwards to your
 > inbox, and your reply goes back out **from the alias**, not from you.
@@ -170,7 +170,7 @@ route, because the worker already enforces the alias allowlist itself:
    `punchin-email`. (Alternatively, create individual `Send to a Worker` rules
    for `abuse`, `cla`, `contact`, `cve`, `feedback`, `licensing`, `privacy`, **and** `relay` — but catch-all is
    less error-prone.)
-3. **Email Sending** → ensure the domain's DKIM for Email Sending is configured so
+3. **Email Sending** → make sure the domain's DKIM for Email Sending is configured so
    that **both** the inbound mail delivered to your inbox **and** the relayed
    replies are signed for `trackmytime.today`. The worker delivers inbound mail by
    *sending* it (via the `EMAIL_SENDING` binding), not by `forward()`-ing, so
@@ -209,7 +209,7 @@ The worker independently verifies the Access JWT and **fails closed** — until
    Routes → Enable Cloudflare Access** (or **Zero Trust → Access → Applications →
    Add → Self-hosted** targeting `punchin-email.<subdomain>.workers.dev`).
 2. **Identity provider:** in **Zero Trust → Settings → Authentication**, use the
-   built-in **Cloudflare** login method (the “Login with Cloudflare” provider).
+   built-in **Cloudflare** login method (the "Login with Cloudflare" provider).
    Leave **One-time PIN** off so the only way in is a Cloudflare account, and
    restrict it to members of your account.
 3. **Policy:** allow only yourself — e.g. an `Allow` policy with **Include →
@@ -217,8 +217,8 @@ The worker independently verifies the Access JWT and **fails closed** — until
    email).
 4. From the application's config, copy the **Application Audience (AUD) tag** and
    your **team domain** (`<team>.cloudflareaccess.com`) into `ACCESS_AUD` and
-   `ACCESS_TEAM_DOMAIN` in `wrangler.toml`, then deploy. Turn on **“Validate
-   Access JWTs”** so unauthenticated requests are blocked at the edge too.
+   `ACCESS_TEAM_DOMAIN` in `wrangler.toml`, then deploy. Turn on **"Validate
+   Access JWTs"** so unauthenticated requests are blocked at the edge too.
 5. Visit `https://punchin-email.<subdomain>.workers.dev/`, sign in with your
    Cloudflare account, and you'll get the settings form.
 

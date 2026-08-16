@@ -30,11 +30,13 @@ describe('handleInbound', () => {
     expect(env.EMAIL_SENDING.sent).toHaveLength(1);
     const out = env.EMAIL_SENDING.sent[0];
     expect(out.from).toBe('cla@trackmytime.today'); // envelope from = the alias
-    expect(out.to).toBe('owner@example.com');
+    expect(out.to).toBe('owner@example.com'); // envelope recipient = the real inbox
 
     const [line1, line2, line3] = out.raw.split('\r\n');
     expect(line1).toBe('From: "partner@corp.com via PunchIn" <cla@trackmytime.today>');
-    expect(line2).toBe('To: owner@example.com');
+    // The *header* To is the alias, never the owner's real address — see the
+    // dedicated leak test below.
+    expect(line2).toBe('To: cla@trackmytime.today');
     expect(line3).toBe(`Reply-To: relay+${key}@trackmytime.today`);
 
     // The inbox owner's real address must not be exposed to the sender path, and
@@ -42,6 +44,29 @@ describe('handleInbound', () => {
     expect(out.raw).not.toContain('Reply-To: partner@corp.com');
     expect(out.raw).toContain('please look at this'); // body preserved
     expect(msg.calls.reject).toHaveLength(0);
+  });
+
+  it('keeps the owner inbox address out of the delivered copy entirely', async () => {
+    // The owner's real forwarding address used to be written into the `To:`
+    // header of the copy delivered to them. The relay direction rewrites
+    // headers but passes the body through verbatim, so a client that quotes
+    // the original headers on reply (Outlook/Exchange style "From:/Sent:/To:"
+    // blocks) copies that address back into the body — and out past the alias
+    // allowlist to the original sender. The envelope already routes the
+    // message, so the header carries the alias instead.
+    const env = makeEnv();
+    const msg = makeMessage({
+      from: 'partner@corp.com',
+      to: 'cla@trackmytime.today',
+      raw: inboundRaw(),
+    });
+
+    await handleInbound(msg, env);
+
+    const out = env.EMAIL_SENDING.sent[0];
+    expect(out.to).toBe('owner@example.com'); // envelope still delivers to the inbox
+    expect(out.raw).not.toContain('owner@example.com'); // …but the message body/headers never name it
+    expect(out.raw).toContain('To: cla@trackmytime.today');
   });
 
   it('preserves the +subaddress in both the stored alias and the From it sends as', async () => {
@@ -60,6 +85,8 @@ describe('handleInbound', () => {
     const out = env.EMAIL_SENDING.sent[0];
     expect(out.from).toBe('cve+report@trackmytime.today');
     expect(out.raw).toContain('From: "p@corp.com via PunchIn" <cve+report@trackmytime.today>');
+    // the header To mirrors the alias the sender wrote to, subaddress included
+    expect(out.raw).toContain('To: cve+report@trackmytime.today');
   });
 
   it('rejects unknown aliases and never sends or forwards', async () => {
@@ -179,17 +206,28 @@ describe('handleRelay', () => {
     expect(env.EMAIL_SENDING.sent).toHaveLength(0);
   });
 
+  // Cloudflare stamps its verdict as a header *on the message*, so these tests
+  // put it in `raw` (where individual instances are distinguishable) rather
+  // than only in the Headers double.
+  const relayRaw = (authLines = []) =>
+    [
+      'From: owner@example.com',
+      'To: relay+0123456789abcdef@trackmytime.today',
+      ...authLines,
+      'Subject: Re: hi',
+      '',
+      'body',
+    ].join('\r\n');
+
   it('relays a reply that authenticated as the FORWARD_TO domain (#31)', async () => {
     const env = makeEnv(); // FORWARD_TO = owner@example.com
     setupThread(env);
     const msg = makeMessage({
       from: 'owner@example.com',
       to: 'relay+0123456789abcdef@trackmytime.today',
-      headers: {
-        'ARC-Authentication-Results':
-          'i=1; mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1; dmarc=pass header.from=example.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@example.com',
-      },
-      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      raw: relayRaw([
+        'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1; dmarc=pass header.from=example.com policy.dmarc=none; spf=pass smtp.mailfrom=owner@example.com',
+      ]),
     });
 
     await handleRelay(msg, env);
@@ -206,11 +244,32 @@ describe('handleRelay', () => {
     const msg = makeMessage({
       from: 'owner@example.com',
       to: 'relay+0123456789abcdef@trackmytime.today',
-      headers: {
-        'ARC-Authentication-Results':
-          'i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com header.s=s1; dmarc=fail header.from=example.com; spf=pass smtp.mailfrom=bounce@attacker.com',
-      },
-      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      raw: relayRaw([
+        'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com header.s=s1; dmarc=fail header.from=example.com; spf=pass smtp.mailfrom=bounce@attacker.com',
+      ]),
+    });
+
+    await handleRelay(msg, env);
+
+    expect(msg.calls.reject).toEqual(['Relay reply failed sender authentication']);
+    expect(env.EMAIL_SENDING.sent).toHaveLength(0);
+  });
+
+  it('cannot be flipped to a pass by appending a second auth-results header', async () => {
+    // The genuine Cloudflare stamp says fail. A `Headers` object joins repeated
+    // instances with ', ', so a reader that takes the authserv-id from the
+    // first segment and a pass from any segment would relay this — a full
+    // spoofing bypass of the #31 guard. It must still be rejected.
+    const env = makeEnv();
+    setupThread(env);
+    const msg = makeMessage({
+      from: 'owner@example.com',
+      to: 'relay+0123456789abcdef@trackmytime.today',
+      raw: relayRaw([
+        'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=attacker.com; dmarc=fail header.from=example.com; spf=fail',
+        // forged by the sender — any authserv-id, no need to reuse the trusted one
+        'Authentication-Results: evil.example; dmarc=pass header.from=example.com',
+      ]),
     });
 
     await handleRelay(msg, env);
@@ -227,8 +286,7 @@ describe('handleRelay', () => {
     const msg = makeMessage({
       from: 'owner@example.com',
       to: 'relay+0123456789abcdef@trackmytime.today',
-      headers: { 'ARC-Authentication-Results': 'i=1; some-other-mx.example; dmarc=pass header.from=example.com' },
-      raw: 'From: owner@example.com\r\nTo: relay+0123456789abcdef@trackmytime.today\r\nSubject: Re: hi\r\n\r\nbody',
+      raw: relayRaw(['ARC-Authentication-Results: i=1; some-other-mx.example; dmarc=pass header.from=example.com']),
     });
 
     await handleRelay(msg, env);

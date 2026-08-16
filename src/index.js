@@ -66,10 +66,19 @@ export async function handleInbound(message, env) {
   const fromHeader = inboundFromHeader(message.from, message.to);
 
   const rawText = await new Response(message.raw).text();
-  const rewritten = rewriteHeaders(rawText, fromHeader, settings.forwardTo, replyTo);
+  // The header `To` is the **alias**, not the owner's real forwarding address.
+  // The envelope (below) is what actually delivers the mail, so naming the
+  // inbox in the header buys nothing — and it leaks: this direction hands the
+  // owner a message whose body is passed through verbatim by the relay
+  // direction, so a client that quotes the original headers on reply (the
+  // Outlook/Exchange "From:/Sent:/To:" block) copies the inbox address into the
+  // body and ships it out to the original sender, straight past the alias
+  // masking. Gmail attributes by `From` and so never showed the leak.
+  const rewritten = rewriteHeaders(rawText, fromHeader, message.to, replyTo);
 
   // Envelope From is the bare alias (a verified RELAY_DOMAIN address); the
-  // display name lives only in the rewritten From header.
+  // display name lives only in the rewritten From header. Envelope To is the
+  // real inbox — that is what routes the message.
   await env.EMAIL_SENDING.send(new EmailMessage(message.to, settings.forwardTo, rewritten));
 }
 
@@ -92,6 +101,14 @@ export async function handleRelay(message, env) {
     return;
   }
 
+  // Read the raw message up front: `message.raw` is a stream that can only be
+  // consumed once, and both the auth verdict below and the outbound rewrite
+  // need it. The verdict must come from the raw text rather than
+  // `message.headers` because a `Headers` object joins repeated instances of a
+  // header into one string, letting an appended, forged Authentication-Results
+  // launder a genuine `fail` into a `pass` (see relayReplyAuthVerdict).
+  const rawText = await new Response(message.raw).text();
+
   // Defence-in-depth on the From == FORWARD_TO gate (issue #31): that gate trusts
   // the unauthenticated header sender, so additionally consult the SPF/DKIM/DMARC
   // verdict our receiving MX (Cloudflare) stamped on the reply and refuse to
@@ -101,7 +118,7 @@ export async function handleRelay(message, env) {
   // format we don't recognise never bounces legitimate mail. Log only the
   // verdict + authserv-id (never addresses/body) so the exact Cloudflare header
   // can be confirmed from `wrangler tail` (issue #34).
-  const auth = relayReplyAuthVerdict(message.headers, senderDomainOf(settings.forwardTo));
+  const auth = relayReplyAuthVerdict(rawText, senderDomainOf(settings.forwardTo));
   console.log('punchin-email: relay auth verdict:', auth.verdict, auth.authservId || '(none)');
   if (auth.verdict === 'fail') {
     message.setReject('Relay reply failed sender authentication');
@@ -139,7 +156,6 @@ export async function handleRelay(message, env) {
   }
   const { aliasEmail, originalSender } = mapping;
 
-  const rawText = await new Response(message.raw).text();
   const rewritten = rewriteHeaders(rawText, aliasEmail, originalSender);
 
   const outbound = new EmailMessage(aliasEmail, originalSender, rewritten);

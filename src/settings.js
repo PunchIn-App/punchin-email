@@ -11,20 +11,37 @@ import { isValidEmailAddress, normalizeAliasList, normalizeContactUrl } from './
 // collide with a relay thread mapping (parseRelayThreadId only matches hex).
 export const SETTINGS_KEY = 'settings:v1';
 
+// The settings an admin may override (and therefore reset). Anything else in
+// the stored record is bookkeeping (updatedAt / updatedBy) and not editable.
+export const EDITABLE_FIELDS = ['forwardTo', 'allowedAliases', 'contactUrl'];
+
+/** Read the stored KV record, tolerating a missing or corrupt one. */
+async function readStored(env) {
+  try {
+    const raw = await env.EMAIL_THREADS.get(SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {
+    // fall through to the env defaults
+  }
+  return {};
+}
+
 /**
  * Read effective settings: stored KV values layered over env defaults.
+ *
+ * Precedence is KV-over-env and there is no expiry, so a value saved once
+ * shadows `wrangler.toml` / the secret **permanently** — changing the deploy
+ * config and redeploying does nothing until the field is cleared with
+ * `resetSetting`.
  * @param {object} env worker bindings/vars
  * @returns {Promise<{forwardTo:string, allowedAliases:string, contactUrl:string,
  *   relayDomain:string, updatedAt:(string|null), updatedBy:(string|null), source:object}>}
  */
 export async function getSettings(env) {
-  let stored = {};
-  try {
-    const raw = await env.EMAIL_THREADS.get(SETTINGS_KEY);
-    if (raw) stored = JSON.parse(raw);
-  } catch {
-    stored = {};
-  }
+  const stored = await readStored(env);
 
   const has = (k) => stored[k] !== undefined && stored[k] !== null;
   const relayDomain = env.RELAY_DOMAIN || '';
@@ -85,6 +102,45 @@ export async function updateSettings(env, patch, updatedBy) {
 
   // No expirationTtl: settings must persist indefinitely.
   await env.EMAIL_THREADS.put(SETTINGS_KEY, JSON.stringify(record));
+
+  return getSettings(env);
+}
+
+/**
+ * Clear one field from the stored KV record so the deploy default (a
+ * `wrangler.toml` var, or the `FORWARD_TO` secret) becomes effective again.
+ *
+ * Without this there is no way back: `getSettings` layers KV over env with no
+ * expiry and `updateSettings` always writes all three fields, so the first save
+ * pins every setting forever. That is a live-config hazard, not just a wart —
+ * removing an alias from `[vars]` and redeploying *looks* like it revoked the
+ * address while the KV copy keeps accepting mail for it.
+ *
+ * The field is deleted from the record (not overwritten with the env value), so
+ * the setting genuinely tracks the deploy config from then on. The audit stamp
+ * is refreshed so a reset is as attributable as a save; when nothing was stored
+ * for the field the call is a no-op and writes nothing.
+ * @param {object} env
+ * @param {string} field one of EDITABLE_FIELDS
+ * @param {string} updatedBy identity that made the change (for audit)
+ * @returns {Promise<object>} new effective settings
+ * @throws {Error} on a field that is not admin-editable
+ */
+export async function resetSetting(env, field, updatedBy) {
+  if (!EDITABLE_FIELDS.includes(field)) {
+    throw new Error(`Unknown setting "${field}"`);
+  }
+
+  const stored = await readStored(env);
+  if (Object.prototype.hasOwnProperty.call(stored, field)) {
+    delete stored[field];
+    const record = {
+      ...stored,
+      updatedAt: new Date().toISOString(),
+      updatedBy: updatedBy || 'unknown',
+    };
+    await env.EMAIL_THREADS.put(SETTINGS_KEY, JSON.stringify(record));
+  }
 
   return getSettings(env);
 }
