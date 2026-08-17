@@ -238,8 +238,14 @@ npm run dev       # wrangler dev (local worker)
 
 ## Deploy
 
+**Merging to `main` deploys to production.** Cloudflare Workers Builds is connected to this
+repo and deploys every push to `main` automatically — no human runs a deploy command in the
+normal flow. The `Workers Builds: punchin-email` check on a PR builds the Worker without
+deploying it; only the merge ships. `npm run deploy` still works and is the manual fallback
+for recovering from a failed build or pushing an out-of-band deploy.
+
 ```bash
-npm run deploy    # wrangler deploy
+npm run deploy    # manual fallback: wrangler deploy
 ```
 
 Cutting a tagged release (tag → `gh release create vX.Y.Z` → deploy) is

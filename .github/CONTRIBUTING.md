@@ -56,8 +56,10 @@ CI enforces this on every push to `main` and on every PR.
 
 ## Deployment & secrets
 
-The worker is deployed with `npm run deploy` (`wrangler deploy`). Mail is routed
-to it via Cloudflare Email Routing — see the **Email Routing setup** section of
+The worker is deployed automatically by Cloudflare Workers Builds on every push
+to `main` — merging a PR ships it. `npm run deploy` (`wrangler deploy`) is the
+manual fallback, not the normal path. Mail is routed to it via Cloudflare Email
+Routing — see the **Email Routing setup** section of
 [`README.md`](../README.md).
 
 Configuration lives in `wrangler.toml`:
