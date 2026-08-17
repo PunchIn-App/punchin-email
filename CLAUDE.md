@@ -203,7 +203,8 @@ npm install
 npm test          # vitest run
 npm run check     # wrangler deploy --dry-run
 npm run dev       # wrangler dev
-npm run deploy    # wrangler deploy
+npm run deploy    # wrangler deploy — MANUAL FALLBACK ONLY; Workers Builds
+                  # deploys every push to main automatically
 ```
 
 `cloudflare:email` is aliased to `test/mocks/cloudflare-email.js` in
